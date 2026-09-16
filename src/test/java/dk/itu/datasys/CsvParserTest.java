@@ -16,8 +16,11 @@ class CsvParserTest {
 
     @Test
     void parsesTypedValues() {
-        Object[] row =
-                CsvParser.parseLine("Copenhagen,100,20.5", COLUMNS);
+        Object[] row = CsvParser.parseLine(
+                "Copenhagen,100,20.5",
+                COLUMNS,
+                "test.csv",
+                1);
 
         assertEquals("Copenhagen", row[0]);
         assertEquals(100L, row[1]);
@@ -28,31 +31,43 @@ class CsvParserTest {
     void rejectsWrongFieldCount() {
         assertThrows(
                 IllegalArgumentException.class,
-                () -> CsvParser.parseLine("Copenhagen,100", COLUMNS)
-        );
+                () -> CsvParser.parseLine(
+                        "Copenhagen,100",
+                        COLUMNS,
+                        "test.csv",
+                        1));
     }
 
     @Test
     void rejectsMalformedLong() {
         assertThrows(
                 IllegalArgumentException.class,
-                () -> CsvParser.parseLine("Copenhagen,nope,20.5", COLUMNS)
-        );
+                () -> CsvParser.parseLine(
+                        "Copenhagen,nope,20.5",
+                        COLUMNS,
+                        "test.csv",
+                        1));
     }
 
     @Test
     void rejectsMalformedDouble() {
         assertThrows(
                 IllegalArgumentException.class,
-                () -> CsvParser.parseLine("Copenhagen,100,nope", COLUMNS)
-        );
+                () -> CsvParser.parseLine(
+                        "Copenhagen,100,nope",
+                        COLUMNS,
+                        "test.csv",
+                        1));
     }
 
     @Test
     void rejectsNonAsciiString() {
         assertThrows(
                 IllegalArgumentException.class,
-                () -> CsvParser.parseLine("København,100,20.5", COLUMNS)
-        );
+                () -> CsvParser.parseLine(
+                        "København,100,20.5",
+                        COLUMNS,
+                        "test.csv",
+                        1));
     }
 }

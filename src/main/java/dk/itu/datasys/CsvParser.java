@@ -9,20 +9,27 @@ final class CsvParser {
 
     static Object[] parseLine(
             String line,
-            List<ColumnSpec> columns) {
+            List<ColumnSpec> columns,
+            String fileName,
+            int lineNumber) {
 
         String[] fields = line.split(",", -1);
 
         if (fields.length != columns.size()) {
             throw new IllegalArgumentException(
-                    "Expected " + columns.size()
+                    fileName + ":" + lineNumber
+                            + ": expected " + columns.size()
                             + " fields but found " + fields.length);
         }
 
         Object[] values = new Object[columns.size()];
 
         for (int i = 0; i < columns.size(); i++) {
-            values[i] = parseValue(fields[i], columns.get(i));
+            values[i] = parseValue(
+                    fields[i],
+                    columns.get(i),
+                    fileName,
+                    lineNumber);
         }
 
         return values;
@@ -30,17 +37,30 @@ final class CsvParser {
 
     private static Object parseValue(
             String value,
-            ColumnSpec column) {
+            ColumnSpec column,
+            String fileName,
+            int lineNumber) {
 
         return switch (column.type()) {
-            case STRING -> parseString(value, column);
+
+            case STRING -> {
+                if (!value.chars().allMatch(c -> c < 128)) {
+                    throw new IllegalArgumentException(
+                            fileName + ":" + lineNumber
+                                    + ": non-ASCII value for column "
+                                    + column.name());
+                }
+
+                yield value;
+            }
 
             case LONG -> {
                 try {
                     yield Long.parseLong(value);
                 } catch (NumberFormatException e) {
                     throw new IllegalArgumentException(
-                            "Invalid LONG value for column "
+                            fileName + ":" + lineNumber
+                                    + ": invalid LONG value for column "
                                     + column.name() + ": " + value,
                             e);
                 }
@@ -51,14 +71,15 @@ final class CsvParser {
                     yield Double.parseDouble(value);
                 } catch (NumberFormatException e) {
                     throw new IllegalArgumentException(
-                            "Invalid DOUBLE value for column "
+                            fileName + ":" + lineNumber
+                                    + ": invalid DOUBLE value for column "
                                     + column.name() + ": " + value,
                             e);
                 }
             }
         };
     }
-
+    
     private static String parseString(
             String value,
             ColumnSpec column) {
