@@ -79,17 +79,4 @@ final class CsvParser {
             }
         };
     }
-    
-    private static String parseString(
-            String value,
-            ColumnSpec column) {
-
-        if (!value.chars().allMatch(c -> c < 128)) {
-            throw new IllegalArgumentException(
-                    "Non-ASCII value for column "
-                            + column.name());
-        }
-
-        return value;
-    }
 }

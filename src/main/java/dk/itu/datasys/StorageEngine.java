@@ -5,9 +5,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -26,12 +28,16 @@ public final class StorageEngine {
     private final int maxRowsPerPartition;
     private static final Logger LOGGER =
         LoggerFactory.getLogger(StorageEngine.class);
-    
+
     public StorageEngine(Path dataDirectory) {
         this(dataDirectory, 1000);
-    }
+}
+
 
     StorageEngine(Path dataDirectory, int maxRowsPerPartition) {
+        MDC.put("sessionId", UUID.randomUUID().toString());
+        MDC.put("statementNumber", "0");
+
         if (maxRowsPerPartition <= 0) {
             throw new IllegalArgumentException(
                     "maxRowsPerPartition must be positive");
@@ -51,7 +57,7 @@ public final class StorageEngine {
                 this.catalog = objectMapper.readValue(
                         catalogPath.toFile(),
                         Catalog.class);
-            normalizeCatalogValues();
+                normalizeCatalogValues();
             } else {
                 this.catalog = new Catalog();
                 saveCatalog();
@@ -63,7 +69,7 @@ public final class StorageEngine {
     }
 
     public void createTable(String tableName, List<ColumnSpec> columns) {
-        LOGGER.info(
+        LOGGER.debug(
                 "operation=createTable table={} columnCount={}",
                 tableName,
                 columns == null ? 0 : columns.size());
@@ -97,7 +103,7 @@ public final class StorageEngine {
     }
 
     public void copyFile(String tableName, String csvFilePath) {
-        LOGGER.info(
+        LOGGER.debug(
                 "operation=copyFile table={} file={}",
                 tableName,
                 csvFilePath);
@@ -185,7 +191,7 @@ public final class StorageEngine {
 
             saveCatalog();
             
-        LOGGER.info(
+        LOGGER.debug(
                 "operation=copyFile table={} partitionsCreated={}",
                 tableName,
                 partitionsCreated);
@@ -203,7 +209,7 @@ public final class StorageEngine {
             Comparison comparison,
             Object constant) {
 
-        LOGGER.info(
+        LOGGER.debug(
                 "operation=select table={} column={} comparison={} constant={}",
                 tableName,
                 columnName,
@@ -237,7 +243,7 @@ public final class StorageEngine {
             Object min = partition.minValues.get(columnIndex);
             Object max = partition.maxValues.get(columnIndex);
 
-            LOGGER.info(
+            LOGGER.debug(
                     "operation=select partition={} column={} min={} max={}",
                     partition.file,
                     columnName,
@@ -253,7 +259,7 @@ public final class StorageEngine {
 
                 stats.recordPruned();
 
-                LOGGER.info(
+                LOGGER.debug(
                         "operation=select partition={} decision=prune",
                         partition.file);
 
@@ -262,7 +268,7 @@ public final class StorageEngine {
 
             stats.recordRead();
 
-            LOGGER.info(
+            LOGGER.debug(
                     "operation=select partition={} decision=read",
                     partition.file);
 
