@@ -4,11 +4,15 @@
 
 We will store the catalog as a JSON file inside the data directory.
 
+There will be one catalog file for the entire storage engine, located at
+`<dataDirectory>/catalog.json`. It contains metadata for all tables managed by
+that engine.
+
 The catalog will contain each table's:
-- Name and schema
-- Data files/partitions
-- Partition metadata, including row counts and min/max values for each column
-- Information needed to find those partitions
+
+* Name and schema
+* Data files/partitions
+* Information needed to find those partitions
 
 JSON was chosen because it is easy to read and inspect while developing.
 
