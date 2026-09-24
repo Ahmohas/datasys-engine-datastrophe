@@ -7,6 +7,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -100,6 +102,14 @@ public final class StorageEngine {
 
         catalog.tables.put(tableName, table);
         saveCatalog();
+    }
+
+    public List<ColumnSpec> schema(String tableName) {
+        TableMetadata table = catalog.tables.get(tableName);
+        if (table == null) {
+            throw new IllegalArgumentException("Table does not exist: " + tableName);
+        }
+        return table.columns;
     }
 
     public void copyFile(String tableName, String csvFilePath) {
