@@ -125,36 +125,45 @@ class SqlParserTest {
                 SqlParseException.class,
                 () -> parser.parse("SELECT * FROM trips"));
         assertEquals(1, e.line());
+        assertEquals(19, e.column());
     }
 
     @Test
     void unbalancedParensReportsPosition() {
-        assertThrows(
+        SqlParseException e = assertThrows(
                 SqlParseException.class,
                 () -> parser.parse(
                         "CREATE TABLE trips (city STRING;"));
+        assertEquals(1, e.line());
+        assertEquals(31, e.column());
     }
 
     @Test
     void unknownTypeNameReportsPosition() {
-        assertThrows(
+        SqlParseException e = assertThrows(
                 SqlParseException.class,
                 () -> parser.parse(
                         "CREATE TABLE trips (city TEXT);"));
+        assertEquals(1, e.line());
+        assertEquals(25, e.column());
     }
 
     @Test
     void unterminatedStringLiteralReportsPosition() {
-        assertThrows(
+        SqlParseException e = assertThrows(
                 SqlParseException.class,
                 () -> parser.parse(
                         "COPY trips FROM 'trips.csv;"));
+        assertEquals(1, e.line());
+        assertEquals(16, e.column());
     }
 
     @Test
     void missingFromReportsPosition() {
-        assertThrows(
+        SqlParseException e = assertThrows(
                 SqlParseException.class,
-                () -> parser.parse("SELECT * trips;"));
+                () -> parser.parse("SELECT *\ntrips;"));
+        assertEquals(2, e.line());
+        assertEquals(0, e.column());
     }
 }

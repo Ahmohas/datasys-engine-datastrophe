@@ -1,5 +1,8 @@
 package dk.itu.datasys;
 
+import java.math.BigDecimal;
+
+
 public final class SqlPrinter {
 
     public String print(Statement statement) {
@@ -43,7 +46,14 @@ public final class SqlPrinter {
         return base + " WHERE " + p.columnName() + " " + operator + " " + constant + ";";
     }
 
-    private String printLiteral(Object value) {
+        private String printLiteral(Object value) {
+        if (value instanceof Double d) {
+            String s = BigDecimal.valueOf(d).toPlainString();
+            if (!s.contains(".")) {
+                s = s + ".0";
+            }
+            return s;
+        }
         if (value instanceof String s) {
             return "'" + s + "'";
         }

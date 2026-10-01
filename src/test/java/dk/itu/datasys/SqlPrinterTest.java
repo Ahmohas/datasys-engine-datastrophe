@@ -56,6 +56,12 @@ class SqlPrinterTest {
         assertRoundTrips(new SelectStatement(
                 "trips",
                 Optional.of(new Predicate("distance", Comparison.EQUALS, -1L))));
+        assertRoundTrips(new SelectStatement(
+                "trips",
+                Optional.of(new Predicate("price", Comparison.EQUALS, 0.0001))));
+        assertRoundTrips(new SelectStatement(
+                "trips",
+                Optional.of(new Predicate("price", Comparison.EQUALS, 12345678.5))));
     }
 
     private void assertRoundTrips(Statement original) {
