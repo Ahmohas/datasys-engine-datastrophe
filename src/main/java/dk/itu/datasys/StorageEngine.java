@@ -5,6 +5,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.slf4j.Logger;
@@ -35,8 +36,11 @@ public final class StorageEngine {
 
 
     StorageEngine(Path dataDirectory, int maxRowsPerPartition) {
-        MDC.put("sessionId", UUID.randomUUID().toString());
-        MDC.put("statementNumber", "0");
+        // Engine.main owns the session; only start one here when used standalone (e.g. tests)
+        if (MDC.get("sessionId") == null) {
+            MDC.put("sessionId", UUID.randomUUID().toString());
+            MDC.put("statementNumber", "0");
+        }
 
         if (maxRowsPerPartition <= 0) {
             throw new IllegalArgumentException(
@@ -100,6 +104,14 @@ public final class StorageEngine {
 
         catalog.tables.put(tableName, table);
         saveCatalog();
+    }
+
+    public List<ColumnSpec> schema(String tableName) {
+        TableMetadata table = catalog.tables.get(tableName);
+        if (table == null) {
+            throw new IllegalArgumentException("Table does not exist: " + tableName);
+        }
+        return List.copyOf(table.columns);
     }
 
     public void copyFile(String tableName, String csvFilePath) {
@@ -228,85 +240,43 @@ public final class StorageEngine {
 
         validateConstant(column, constant);
 
-        ScanStats stats = new ScanStats();
-        lastScanStats = stats;
-
-        LOGGER.debug(
-                "operation=select stats=created table={} column={}",
+        SelectStatement statement = new SelectStatement(
                 tableName,
-                columnName);
+                Optional.of(new Predicate(columnName, comparison, constant)));
+
+        Plan plan = new Planner(this).plan(statement);
+        lastScanStats = plan.stats();
 
         List<Object[]> results = new ArrayList<>();
-
-        for (PartitionMetadata partition : table.partitions) {
-
-            Object min = partition.minValues.get(columnIndex);
-            Object max = partition.maxValues.get(columnIndex);
-
-            LOGGER.debug(
-                    "operation=select partition={} column={} min={} max={}",
-                    partition.file,
-                    columnName,
-                    min,
-                    max);
-
-            if (Pruning.canPrune(
-                    column.type(),
-                    min,
-                    max,
-                    comparison,
-                    constant)) {
-
-                stats.recordPruned();
-
-                LOGGER.debug(
-                        "operation=select partition={} decision=prune",
-                        partition.file);
-
-                continue;
+        Operator root = plan.root();
+        root.open();
+        try {
+            Object[] row;
+            while ((row = root.next()) != null) {
+                results.add(row);
             }
-
-            stats.recordRead();
-
-            LOGGER.debug(
-                    "operation=select partition={} decision=read",
-                    partition.file);
-
-            Path partitionPath =
-                    dataDirectory.resolve(partition.file);
-
-            try {
-                List<Object[]> rows =
-                        PartitionReader.read(
-                                partitionPath,
-                                table.columns);
-
-                for (Object[] row : rows) {
-                    if (matches(
-                            row[columnIndex],
-                            comparison,
-                            constant,
-                            column.type())) {
-
-                        results.add(row);
-                    }
-                }
-
-            } catch (IOException e) {
-                throw new RuntimeException(
-                        "Failed to read partition: "
-                                + partition.file,
-                        e);
-            }
+        } finally {
+            root.close();
         }
-
-        LOGGER.debug(
-                "operation=select stats=used table={} partitionsRead={} partitionsPruned={}",
-                tableName,
-                stats.partitionsRead(),
-                stats.partitionsPruned());
-
         return results;
+    }
+
+    /** Reads all rows of one partition of a table; used by ScanOperator. */
+    List<Object[]> readPartition(String tableName, PartitionMetadata partition) {
+        TableMetadata table = catalog.tables.get(tableName);
+        if (table == null) {
+            throw new IllegalArgumentException(
+                    "Table does not exist: " + tableName);
+        }
+        try {
+            return PartitionReader.read(
+                    dataDirectory.resolve(partition.file),
+                    table.columns);
+        } catch (IOException e) {
+            throw new RuntimeException(
+                    "Failed to read partition: " + partition.file,
+                    e);
+        }
     }
 
     private void saveCatalog() {
@@ -400,30 +370,6 @@ public final class StorageEngine {
             case STRING -> (String) value;
             case LONG -> ((Number) value).longValue();
             case DOUBLE -> ((Number) value).doubleValue();
-        };
-    }
-
-    private boolean matches(
-            Object value,
-            Comparison comparison,
-            Object constant,
-            ColumnType type) {
-
-        int cmp = switch (type) {
-            case STRING ->
-                    ((String) value).compareTo((String) constant);
-
-            case LONG ->
-                    Long.compare((Long) value, (Long) constant);
-
-            case DOUBLE ->
-                    Double.compare((Double) value, (Double) constant);
-        };
-
-        return switch (comparison) {
-            case EQUALS -> cmp == 0;
-            case LESS_THAN -> cmp < 0;
-            case GREATER_THAN -> cmp > 0;
         };
     }
 }

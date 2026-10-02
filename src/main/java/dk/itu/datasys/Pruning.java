@@ -24,6 +24,22 @@ final class Pruning {
         };
     }
 
+    /** Row-level test: does value satisfy "value comparison constant"? */
+    static boolean matches(
+            ColumnType type,
+            Object value,
+            Comparison comparison,
+            Object constant) {
+
+        int cmp = compare(type, value, constant);
+
+        return switch (comparison) {
+            case EQUALS -> cmp == 0;
+            case LESS_THAN -> cmp < 0;
+            case GREATER_THAN -> cmp > 0;
+        };
+    }
+
     @SuppressWarnings("unchecked")
     static int compare(ColumnType type, Object left, Object right) {
         return switch (type) {

@@ -1,85 +1,77 @@
 package dk.itu.datasys;
 
+import java.io.IOException;
+import java.io.PrintStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
 import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 
+/**
+ * The SQL front door. SELECT rows go to stdout as headerless CSV; logs and
+ * errors go to stderr, so stdout can be diffed against DuckDB's output.
+ */
 public final class Engine {
     private static final Logger LOGGER = LoggerFactory.getLogger(Engine.class);
 
-    public static void main(String[] args) throws Exception {
+    static final Path DEFAULT_DATA_DIRECTORY = Path.of("data");
+
+    private static final String USAGE = """
+            Usage:
+              mvn -q compile exec:java -Dexec.args="'<SQL statement>'"
+              mvn -q compile exec:java -Dexec.args="-f <script.sql>"
+            Data directory: data/ under the working directory.
+            """;
+
+    public static void main(String[] args) {
         MDC.put("sessionId", UUID.randomUUID().toString());
         MDC.put("statementNumber", "0");
-
         LOGGER.debug("engine started");
 
-        Path dataDirectory = Files.createTempDirectory("datasys-engine-demo");
-        Path csvFile = dataDirectory.resolve("trips.csv");
+        int exitCode = run(args, DEFAULT_DATA_DIRECTORY, System.out, System.err);
 
-        Files.writeString(csvFile, """
-                Copenhagen,12,23.5
-                Aarhus,187,301.0
-                Odense,95,120.75
-                Copenhagen,140,210.0
-                Aalborg,210,340.5
-                Roskilde,31,45.0
-                Copenhagen,88,99.99
-                Esbjerg,299,450.25
-                """);
-
-        StorageEngine engine = new StorageEngine(dataDirectory);
-
-        engine.createTable(
-                "trips",
-                List.of(
-                        new ColumnSpec("city", ColumnType.STRING),
-                        new ColumnSpec("distance", ColumnType.LONG),
-                        new ColumnSpec("price", ColumnType.DOUBLE)
-                )
-        );
-
-        engine.copyFile("trips", csvFile.toString());
-
-        System.out.println("distance > 100:");
-        printRows(engine.select(
-                "trips",
-                "distance",
-                Comparison.GREATER_THAN,
-                100L
-        ));
-
-        System.out.println("city = Copenhagen:");
-        printRows(engine.select(
-                "trips",
-                "city",
-                Comparison.EQUALS,
-                "Copenhagen"
-        ));
-
-        System.out.println("price < 50.0:");
-        printRows(engine.select(
-                "trips",
-                "price",
-                Comparison.LESS_THAN,
-                50.0
-        ));
-
-        LOGGER.debug("engine stopped");
+        LOGGER.debug("engine stopped exitCode={}", exitCode);
+        if (exitCode != 0) {
+            System.exit(exitCode);
+        }
     }
 
-    private static void printRows(List<Object[]> rows) {
-        for (Object[] row : rows) {
-            System.out.println(String.join(
-                    ",",
-                    java.util.Arrays.stream(row)
-                            .map(String::valueOf)
-                            .toArray(String[]::new)
-            ));
+    /** Runs the front door against the given streams and returns the process exit code. */
+    static int run(String[] args, Path dataDirectory, PrintStream out, PrintStream err) {
+        String sqlText;
+        if (args.length == 0) {
+            out.println("Team: " + new Engine().teamName());
+            out.print(USAGE);
+            return 0;
+        } else if (args.length == 1) {
+            sqlText = args[0];
+        } else if (args.length == 2 && args[0].equals("-f")) {
+            try {
+                sqlText = Files.readString(Path.of(args[1]));
+            } catch (IOException e) {
+                err.println("Error: cannot read script " + args[1] + ": " + e.getMessage());
+                return 1;
+            }
+        } else {
+            err.print(USAGE);
+            return 2;
+        }
+
+        try {
+            new Executor(new StorageEngine(dataDirectory), out).executeScript(sqlText);
+            return 0;
+        } catch (SqlParseException e) {
+            err.println("Error: syntax error at line " + e.line() + ", column " + e.column()
+                    + ": " + e.getMessage());
+            return 1;
+        } catch (RuntimeException e) {
+            err.println("Error: " + e.getMessage());
+            return 1;
+        } finally {
+            out.flush();
         }
     }
 
