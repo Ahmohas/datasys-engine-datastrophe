@@ -31,23 +31,26 @@ final class CsvWriter {
         };
     }
 
-    // Plain notation, always with a decimal point: 301.0, not 301 or 3.01E2
+    // Plain notation, always with a decimal point: 301.0, not 301 or 3.01E2.
+    // Known gap: DuckDB switches to scientific notation for very large or
+    // small values (e.g. 1e20); we print those as plain decimals.
     private static String formatDouble(double d) {
         if (Double.isNaN(d) || Double.isInfinite(d)) {
             return Double.toString(d);
         }
-        String s = BigDecimal.valueOf(d).toPlainString();
+        String s = BigDecimal.valueOf(d).stripTrailingZeros().toPlainString();
         return s.contains(".") ? s : s + ".0";
     }
 
-    // DuckDB's CLI quotes empty strings and strings with a separator, quote or control character
+    // DuckDB's CLI quotes empty strings and strings containing a comma, a double
+    // quote or a line break; apostrophes, tabs and non-ASCII text stay unquoted
     private static boolean needsQuotes(String s) {
         if (s.isEmpty()) {
             return true;
         }
         for (int i = 0; i < s.length(); i++) {
             char c = s.charAt(i);
-            if (c == ',' || c == '"' || c == '\'' || c < 0x20 || c >= 0x7f) {
+            if (c == ',' || c == '"' || c == '\n' || c == '\r') {
                 return true;
             }
         }
