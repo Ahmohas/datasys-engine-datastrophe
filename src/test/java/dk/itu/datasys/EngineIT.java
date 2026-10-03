@@ -57,13 +57,13 @@ class EngineIT {
         assertEquals(0, run(tempDir, "-f", script.toString()), stderr());
         assertEquals("", stdout());
 
-        int exitCode = run(tempDir, "SELECT * FROM trips WHERE distance = 95");
+        int exitCode = run(tempDir, "-c", "SELECT * FROM trips WHERE distance = 95");
 
         assertEquals(1, exitCode, "missing ';' must be a syntax error");
         stdout.reset();
         stderr.reset();
 
-        exitCode = run(tempDir, "SELECT * FROM trips WHERE distance = 95;");
+        exitCode = run(tempDir, "-c", "SELECT * FROM trips WHERE distance = 95;");
 
         assertEquals(0, exitCode, stderr());
         assertEquals("Odense,95,120.75\n", stdout());
