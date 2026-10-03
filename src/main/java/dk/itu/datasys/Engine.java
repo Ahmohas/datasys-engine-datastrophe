@@ -21,8 +21,9 @@ public final class Engine {
 
     private static final String USAGE = """
             Usage:
-              mvn -q compile exec:java -Dexec.args="'<SQL statement>'"
-              mvn -q compile exec:java -Dexec.args="-f <script.sql>"
+              ./engine                      prints team name and usage
+              ./engine -c "<SQL statement>"  runs one statement
+              ./engine -f <script.sql>       runs a script
             Data directory: data/ under the working directory.
             """;
 
@@ -46,8 +47,8 @@ public final class Engine {
             out.println("Team: " + new Engine().teamName());
             out.print(USAGE);
             return 0;
-        } else if (args.length == 1) {
-            sqlText = args[0];
+        } else if (args.length == 2 && args[0].equals("-c")) {
+            sqlText = args[1];
         } else if (args.length == 2 && args[0].equals("-f")) {
             try {
                 sqlText = Files.readString(Path.of(args[1]));
