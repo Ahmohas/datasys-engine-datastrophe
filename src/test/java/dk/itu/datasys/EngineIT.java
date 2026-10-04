@@ -8,6 +8,7 @@ import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -71,6 +72,9 @@ class EngineIT {
 
     @Test
     void failingScriptReportsOnStderrAndLeavesStdoutClean(@TempDir Path tempDir) throws Exception {
+        Path logFile = Path.of("logs", "engine.log");
+        int linesBefore = Files.exists(logFile) ? Files.readAllLines(logFile).size() : 0;
+
         Path script = tempDir.resolve("bad.sql");
         Files.writeString(script, "SELECT * FROM missing;\n");
 
@@ -80,6 +84,11 @@ class EngineIT {
         assertEquals("", stdout());
         assertTrue(stderr().contains("missing"), stderr());
         assertEquals("0", MDC.get("statementNumber"));
+
+        List<String> allLines = Files.readAllLines(logFile);
+        List<String> newLines = allLines.subList(linesBefore, allLines.size());
+        boolean hasErrorLine = newLines.stream().anyMatch(line -> line.contains(",ERROR,"));
+        assertTrue(hasErrorLine, "expected an ERROR line in logs/engine.log for the failing statement");
     }
 
     @Test
