@@ -5,7 +5,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
 import org.slf4j.Logger;
@@ -19,13 +18,12 @@ public final class StorageEngine {
 
     TableMetadata tableMetadata(String tableName) {
         return catalog.tables.get(tableName);
-    }  
+    }
 
     private final Path dataDirectory;
     private final Path catalogPath;
     private final ObjectMapper objectMapper;
     private Catalog catalog;
-    private ScanStats lastScanStats;
     private final int maxRowsPerPartition;
     private static final Logger LOGGER =
         LoggerFactory.getLogger(StorageEngine.class);
@@ -202,7 +200,7 @@ public final class StorageEngine {
             }
 
             saveCatalog();
-            
+
         LOGGER.debug(
                 "operation=copyFile table={} partitionsCreated={}",
                 tableName,
@@ -213,52 +211,6 @@ public final class StorageEngine {
                     "Failed to copy CSV file: " + csvFilePath,
                     e);
         }
-    }
-
-    public List<Object[]> select(
-            String tableName,
-            String columnName,
-            Comparison comparison,
-            Object constant) {
-
-        LOGGER.debug(
-                "operation=select table={} column={} comparison={} constant={}",
-                tableName,
-                columnName,
-                comparison,
-                constant);
-
-        TableMetadata table = catalog.tables.get(tableName);
-
-        if (table == null) {
-            throw new IllegalArgumentException(
-                    "Table does not exist: " + tableName);
-        }
-
-        int columnIndex = findColumnIndex(table, columnName);
-        ColumnSpec column = table.columns.get(columnIndex);
-
-        validateConstant(column, constant);
-
-        SelectStatement statement = new SelectStatement(
-                tableName,
-                Optional.of(new Predicate(columnName, comparison, constant)));
-
-        Plan plan = new Planner(this).plan(statement);
-        lastScanStats = plan.stats();
-
-        List<Object[]> results = new ArrayList<>();
-        Operator root = plan.root();
-        root.open();
-        try {
-            Object[] row;
-            while ((row = root.next()) != null) {
-                results.add(row);
-            }
-        } finally {
-            root.close();
-        }
-        return results;
     }
 
     /** Reads all rows of one partition of a table; used by ScanOperator. */
@@ -303,46 +255,6 @@ public final class StorageEngine {
             partitionPath,
             columns,
             rows);
-    }
-
-    ScanStats getLastScanStats() {
-        return lastScanStats;
-    }
-
-    private int findColumnIndex(
-            TableMetadata table,
-            String columnName) {
-
-        for (int i = 0; i < table.columns.size(); i++) {
-            if (table.columns.get(i).name().equals(columnName)) {
-                return i;
-            }
-    }
-
-    throw new IllegalArgumentException(
-            "Unknown column: " + columnName);
-    }
-
-    private void validateConstant(
-            ColumnSpec column,
-            Object constant) {
-
-        if (constant == null) {
-            throw new IllegalArgumentException(
-                    "Comparison constant cannot be null");
-        }
-
-        boolean valid = switch (column.type()) {
-            case STRING -> constant instanceof String;
-            case LONG -> constant instanceof Long;
-            case DOUBLE -> constant instanceof Double;
-        };
-
-        if (!valid) {
-            throw new IllegalArgumentException(
-                    "Constant type does not match column type: "
-                            + column.name());
-        }
     }
 
     private void normalizeCatalogValues() {
