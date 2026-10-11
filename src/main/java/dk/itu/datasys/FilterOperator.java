@@ -68,7 +68,7 @@ public final class FilterOperator implements Operator {
                 "operator=Filter column={} comparison={} constant={} rowsIn={} rowsOut={}",
                 predicate.columnName(),
                 predicate.comparison(),
-                predicate.constant(),
+                LogText.safe(predicate.constant()),
                 rowsIn,
                 rowsOut);
     }

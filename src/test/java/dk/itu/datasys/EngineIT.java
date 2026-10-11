@@ -110,6 +110,33 @@ class EngineIT {
         assertTrue(stdout().contains("Usage"));
     }
 
+    @Test
+    void userTextInLogsDoesNotBreakTheLogFormat(@TempDir Path tempDir) throws Exception {
+        Path logFile = Path.of("logs", "engine.log");
+        int linesBefore = Files.exists(logFile) ? Files.readAllLines(logFile).size() : 0;
+
+        Path setup = tempDir.resolve("setup.sql");
+        Files.writeString(setup, SETUP);
+        assertEquals(0, run(tempDir, "-f", setup.toString()), stderr());
+
+        assertEquals(0, run(tempDir, "-c",
+                "SELECT * FROM trips WHERE city = 'Aarhus, DK';"), stderr());
+
+        List<String> all = Files.readAllLines(logFile);
+        Path snapshot = tempDir.resolve("snapshot.log");
+        Files.write(snapshot, all.subList(linesBefore, all.size()));
+
+        Path ingest = tempDir.resolve("ingest.sql");
+        Files.writeString(ingest, """
+                CREATE TABLE logs (timestamp STRING, sessionId STRING, statementNumber LONG,
+                                   threadId LONG, logLevel STRING, className STRING, logMessage STRING);
+                COPY logs FROM '%s';
+                """.formatted(snapshot));
+
+        stderr.reset();
+        assertEquals(0, run(tempDir, "-f", ingest.toString()), stderr());
+    }
+
     private int run(Path tempDir, String... args) {
         return Engine.run(
                 args,

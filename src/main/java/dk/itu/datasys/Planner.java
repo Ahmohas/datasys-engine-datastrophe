@@ -53,8 +53,8 @@ public final class Planner {
                     "operation=plan partition={} column={} min={} max={}",
                     partition.file,
                     predicate.columnName(),
-                    min,
-                    max);
+                    LogText.safe(min),
+                    LogText.safe(max));
 
             if (Pruning.canPrune(type, min, max, predicate.comparison(), predicate.constant())) {
                 stats.recordPruned();

@@ -116,7 +116,7 @@ public final class StorageEngine {
         LOGGER.debug(
                 "operation=copyFile table={} file={}",
                 tableName,
-                csvFilePath);
+                LogText.safe(csvFilePath));
         TableMetadata table = catalog.tables.get(tableName);
 
         if (table == null) {
@@ -169,8 +169,8 @@ public final class StorageEngine {
                                 tableName,
                                 metadata.file,
                                 table.columns.get(column).name(),
-                                metadata.minValues.get(column),
-                                metadata.maxValues.get(column));
+                                LogText.safe(metadata.minValues.get(column)),
+                                LogText.safe(metadata.maxValues.get(column)));
                     }
                     table.partitions.add(metadata);
                     partitionsCreated++;
@@ -192,8 +192,8 @@ public final class StorageEngine {
                             tableName,
                             metadata.file,
                             table.columns.get(column).name(),
-                            metadata.minValues.get(column),
-                            metadata.maxValues.get(column));
+                            LogText.safe(metadata.minValues.get(column)),
+                            LogText.safe(metadata.maxValues.get(column)));
                 }
                 table.partitions.add(metadata);
                 partitionsCreated++;
