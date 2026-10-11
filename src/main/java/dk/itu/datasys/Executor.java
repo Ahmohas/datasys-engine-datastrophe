@@ -68,7 +68,7 @@ public final class Executor {
                 }
             }
         } catch (RuntimeException e) {
-            LOGGER.error("statement failed error={} durationMs={}", e.getMessage(), elapsedMs(start));
+            LOGGER.error("statement failed error={} durationMs={}", LogText.safe(e.getMessage()), elapsedMs(start));
             throw e;
         }
     }
