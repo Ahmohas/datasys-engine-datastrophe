@@ -166,4 +166,22 @@ class SqlParserTest {
         assertEquals(2, e.line());
         assertEquals(0, e.column());
     }
+
+    @Test
+    void longOutOfRangeReportsPosition() {
+        SqlParseException e = assertThrows(
+                SqlParseException.class,
+                () -> parser.parse("SELECT * FROM trips WHERE distance = 9223372036854775808;"));
+        assertEquals(1, e.line());
+        assertEquals(37, e.column());
+    }
+
+    @Test
+    void doubleOutOfRangeReportsPosition() {
+        SqlParseException e = assertThrows(
+                SqlParseException.class,
+                () -> parser.parse("SELECT * FROM trips WHERE price = 1" + "0".repeat(400) + ".0;"));
+        assertEquals(1, e.line());
+        assertEquals(34, e.column());
+    }
 }
