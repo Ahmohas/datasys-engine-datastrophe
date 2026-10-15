@@ -49,9 +49,25 @@ public final class SqlAstBuilder extends SqlBaseVisitor<Object> {
             return unquote(ctx.STRING_LITERAL().getText());
         }
         if (ctx.DOUBLE_LITERAL() != null) {
-            return Double.parseDouble(ctx.DOUBLE_LITERAL().getText());
+            double value = Double.parseDouble(ctx.DOUBLE_LITERAL().getText());
+            if (Double.isInfinite(value)) {
+                throw outOfRange(ctx);
+            }
+            return value;
         }
-        return Long.parseLong(ctx.LONG_LITERAL().getText());
+        try {
+            return Long.parseLong(ctx.LONG_LITERAL().getText());
+        } catch (NumberFormatException e) {
+            throw outOfRange(ctx);
+        }
+    }
+
+    // A number literal too big for its Java type is a syntax error with a position
+    private static SqlParseException outOfRange(SqlParser.LiteralContext ctx) {
+        return new SqlParseException(
+                "number out of range: " + ctx.getText(),
+                ctx.getStart().getLine(),
+                ctx.getStart().getCharPositionInLine());
     }
 
     // Turns each columnDef (e.g. "city STRING") into a ColumnSpec

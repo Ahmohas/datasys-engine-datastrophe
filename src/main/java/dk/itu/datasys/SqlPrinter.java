@@ -48,6 +48,9 @@ public final class SqlPrinter {
 
         private String printLiteral(Object value) {
         if (value instanceof Double d) {
+            if (Double.compare(d, -0.0) == 0) {
+                return "-0.0";
+            }
             String s = BigDecimal.valueOf(d).toPlainString();
             if (!s.contains(".")) {
                 s = s + ".0";

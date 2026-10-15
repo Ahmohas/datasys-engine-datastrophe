@@ -69,4 +69,11 @@ class SqlPrinterTest {
         Statement reparsed = parser.parse(printed).get(0);
         assertEquals(original, reparsed);
     }
+
+    @Test
+    void roundTripsNegativeZero() {
+        assertRoundTrips(new SelectStatement(
+                "trips",
+                Optional.of(new Predicate("price", Comparison.EQUALS, -0.0))));
+    }
 }
