@@ -19,6 +19,9 @@ public final class Engine {
 
     static final Path DEFAULT_DATA_DIRECTORY = Path.of("data");
 
+    /** Rows per partition for COPY; set with ENGINE_JAVA_OPTS=-Dengine.maxRowsPerPartition=N. */
+    static final int MAX_ROWS_PER_PARTITION = Integer.getInteger("engine.maxRowsPerPartition", 1000);
+
     private static final String USAGE = """
             Usage:
               ./engine                      prints team name and usage
@@ -30,7 +33,7 @@ public final class Engine {
     public static void main(String[] args) {
         MDC.put("sessionId", UUID.randomUUID().toString());
         MDC.put("statementNumber", "0");
-        LOGGER.debug("engine started");
+        LOGGER.debug("engine started maxRowsPerPartition={}", MAX_ROWS_PER_PARTITION);
 
         int exitCode = run(args, DEFAULT_DATA_DIRECTORY, System.out, System.err);
 
@@ -62,7 +65,8 @@ public final class Engine {
         }
 
         try {
-            new Executor(new StorageEngine(dataDirectory), out).executeScript(sqlText);
+            StorageEngine storage = new StorageEngine(dataDirectory, MAX_ROWS_PER_PARTITION);
+            new Executor(storage, out).executeScript(sqlText);
             return 0;
         } catch (SqlParseException e) {
             err.println("Error: syntax error at line " + e.line() + ", column " + e.column()
