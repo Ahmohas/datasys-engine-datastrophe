@@ -29,8 +29,16 @@ public final class SqlAstBuilder extends SqlBaseVisitor<Object> {
     @Override
     public Object visitSelect(SqlParser.SelectContext ctx) {
         String tableName = ctx.IDENTIFIER().getText();
-        Optional<Predicate> where = buildWhereClause(ctx);
+        Optional<Predicate> where = buildWhereClause(ctx.predicate());
         return new SelectStatement(tableName, where);
+    }
+
+    // Called once per DELETE statement
+    @Override
+    public Object visitDelete(SqlParser.DeleteContext ctx) {
+        String tableName = ctx.IDENTIFIER().getText();
+        Optional<Predicate> where = buildWhereClause(ctx.predicate());
+        return new DeleteStatement(tableName, where);
     }
 
     // Called for the WHERE column = / < / > value part, if present
@@ -84,11 +92,11 @@ public final class SqlAstBuilder extends SqlBaseVisitor<Object> {
     }
 
     // WHERE is optional in our grammar, so this can return empty
-    private Optional<Predicate> buildWhereClause(SqlParser.SelectContext ctx) {
-        if (ctx.predicate() == null) {
+    private Optional<Predicate> buildWhereClause(SqlParser.PredicateContext predicate) {
+        if (predicate == null) {
             return Optional.empty();
         }
-        return Optional.of((Predicate) visit(ctx.predicate()));
+        return Optional.of((Predicate) visit(predicate));
     }
 
     // Maps the STRING/LONG/DOUBLE keyword token to our ColumnType enum

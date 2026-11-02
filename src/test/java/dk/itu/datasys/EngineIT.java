@@ -104,6 +104,34 @@ class EngineIT {
     }
 
     @Test
+    void scriptWithTwoCopiesAndADeleteReturnsTheRemainingRows(@TempDir Path tempDir) throws Exception {
+        Path script = tempDir.resolve("delete.sql");
+        Files.writeString(script, """
+                CREATE TABLE trips (city STRING, distance LONG, price DOUBLE);
+                COPY trips FROM 'src/test/resources/trips.csv';
+                COPY trips FROM 'src/test/resources/sorted-trips.csv';
+                DELETE FROM trips WHERE distance > 100;
+                SELECT * FROM trips;
+                """);
+
+        int exitCode = run(tempDir, "-f", script.toString());
+
+        // Both files hold the same 8 trips (in different orders); the 4 longer than 100 go
+        // from each, and DELETE itself prints nothing
+        assertEquals(0, exitCode, stderr());
+        assertEquals("""
+                Copenhagen,12,23.5
+                Odense,95,120.75
+                Roskilde,31,45.0
+                Copenhagen,88,99.99
+                Copenhagen,12,23.5
+                Roskilde,31,45.0
+                Copenhagen,88,99.99
+                Odense,95,120.75
+                """, stdout());
+    }
+
+    @Test
     void noArgumentsPrintsTeamNameAndUsage(@TempDir Path tempDir) {
         assertEquals(0, run(tempDir));
         assertTrue(stdout().contains("datastrophe"));

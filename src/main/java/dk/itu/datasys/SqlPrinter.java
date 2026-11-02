@@ -1,6 +1,7 @@
 package dk.itu.datasys;
 
 import java.math.BigDecimal;
+import java.util.Optional;
 
 
 public final class SqlPrinter {
@@ -9,7 +10,8 @@ public final class SqlPrinter {
         return switch (statement) {
             case CreateTableStatement s -> printCreateTable(s);
             case CopyStatement s -> printCopy(s);
-            case SelectStatement s -> printSelect(s);
+            case SelectStatement s -> printWhere("SELECT * FROM " + s.tableName(), s.where());
+            case DeleteStatement s -> printWhere("DELETE FROM " + s.tableName(), s.where());
         };
     }
 
@@ -31,12 +33,11 @@ public final class SqlPrinter {
         return "COPY " + s.tableName() + " FROM '" + s.csvFilePath() + "';";
     }
 
-    private String printSelect(SelectStatement s) {
-        String base = "SELECT * FROM " + s.tableName();
-        if (s.where().isEmpty()) {
+    private String printWhere(String base, Optional<Predicate> where) {
+        if (where.isEmpty()) {
             return base + ";";
         }
-        Predicate p = s.where().get();
+        Predicate p = where.get();
         String operator = switch (p.comparison()) {
             case EQUALS -> "=";
             case LESS_THAN -> "<";

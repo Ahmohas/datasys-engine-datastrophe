@@ -4,6 +4,24 @@ final class Pruning {
 
     private Pruning() {}
 
+    /**
+     * Whether the partition may hold a row matching the predicate, judged from its min/max only.
+     * The planner reads exactly these partitions; DELETE rewrites exactly these partitions.
+     */
+    static boolean mayContainMatch(
+            ColumnType type,
+            PartitionMetadata partition,
+            int columnIndex,
+            Predicate predicate) {
+
+        return !canPrune(
+                type,
+                partition.minValues.get(columnIndex),
+                partition.maxValues.get(columnIndex),
+                predicate.comparison(),
+                predicate.constant());
+    }
+
     static boolean canPrune(
             ColumnType type,
             Object min,

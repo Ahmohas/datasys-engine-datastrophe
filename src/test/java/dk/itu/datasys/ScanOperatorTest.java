@@ -19,7 +19,7 @@ class ScanOperatorTest {
     @Test
     void returnsEveryRowOfEveryPartitionInOrder(@TempDir Path tempDir) {
         StorageEngine engine = goldenEngine(tempDir);
-        List<PartitionMetadata> all = engine.tableMetadata("trips").partitions;
+        List<PartitionMetadata> all = engine.tableMetadata("trips").partitions();
 
         List<Object[]> rows = FilterOperatorTest.drain(new ScanOperator(engine, "trips", all));
 
@@ -31,7 +31,7 @@ class ScanOperatorTest {
     @Test
     void returnsExactlyTheRowsOfTheHandedPartitions(@TempDir Path tempDir) {
         StorageEngine engine = goldenEngine(tempDir);
-        List<PartitionMetadata> all = engine.tableMetadata("trips").partitions;
+        List<PartitionMetadata> all = engine.tableMetadata("trips").partitions();
 
         // Partition 1 holds Odense,95 and Copenhagen,140; partition 3 holds Copenhagen,88 and Esbjerg,299
         List<Object[]> rows = FilterOperatorTest.drain(

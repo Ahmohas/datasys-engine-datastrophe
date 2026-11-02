@@ -76,4 +76,15 @@ class SqlPrinterTest {
                 "trips",
                 Optional.of(new Predicate("price", Comparison.EQUALS, -0.0))));
     }
+
+    @Test
+    void roundTripsDelete() {
+        assertRoundTrips(new DeleteStatement("trips", Optional.empty()));
+        assertRoundTrips(new DeleteStatement(
+                "trips",
+                Optional.of(new Predicate("distance", Comparison.LESS_THAN, 100L))));
+        assertRoundTrips(new DeleteStatement(
+                "trips",
+                Optional.of(new Predicate("city", Comparison.EQUALS, "Odense"))));
+    }
 }

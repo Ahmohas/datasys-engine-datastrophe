@@ -184,4 +184,29 @@ class SqlParserTest {
         assertEquals(1, e.line());
         assertEquals(34, e.column());
     }
+
+    @Test
+    void parsesDeleteWithoutWhere() {
+        assertEquals(
+                List.of(new DeleteStatement("trips", Optional.empty())),
+                parser.parse("DELETE FROM trips;"));
+    }
+
+    @Test
+    void parsesDeleteWithWhere() {
+        assertEquals(
+                List.of(new DeleteStatement(
+                        "trips",
+                        Optional.of(new Predicate("city", Comparison.EQUALS, "Odense")))),
+                parser.parse("delete from trips where city = 'Odense';"));
+    }
+
+    @Test
+    void deleteWithoutFromReportsPosition() {
+        SqlParseException e = assertThrows(
+                SqlParseException.class,
+                () -> parser.parse("DELETE trips;"));
+        assertEquals(1, e.line());
+        assertEquals(7, e.column());
+    }
 }

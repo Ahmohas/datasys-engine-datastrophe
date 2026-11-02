@@ -97,4 +97,51 @@ class BinderIT {
 
         assertThrows(IllegalArgumentException.class, () -> binder.bind(statement));
     }
+
+    @Test
+    void validDeleteBinds(@TempDir Path directory) {
+        StorageEngine engine = new StorageEngine(directory);
+        engine.createTable("trips", List.of(new ColumnSpec("distance", ColumnType.LONG)));
+        Binder binder = new Binder(engine);
+
+        assertDoesNotThrow(() -> binder.bind(new DeleteStatement("trips", Optional.empty())));
+        assertDoesNotThrow(() -> binder.bind(new DeleteStatement(
+                "trips",
+                Optional.of(new Predicate("distance", Comparison.LESS_THAN, 10L)))));
+    }
+
+    @Test
+    void deleteOnUnknownTableThrows(@TempDir Path directory) {
+        Binder binder = new Binder(new StorageEngine(directory));
+
+        Statement statement = new DeleteStatement("missing", Optional.empty());
+
+        assertThrows(IllegalArgumentException.class, () -> binder.bind(statement));
+    }
+
+    @Test
+    void deleteOnUnknownColumnThrows(@TempDir Path directory) {
+        StorageEngine engine = new StorageEngine(directory);
+        engine.createTable("trips", List.of(new ColumnSpec("city", ColumnType.STRING)));
+        Binder binder = new Binder(engine);
+
+        Statement statement = new DeleteStatement(
+                "trips",
+                Optional.of(new Predicate("missing", Comparison.EQUALS, "x")));
+
+        assertThrows(IllegalArgumentException.class, () -> binder.bind(statement));
+    }
+
+    @Test
+    void deleteWithTypeMismatchedConstantThrows(@TempDir Path directory) {
+        StorageEngine engine = new StorageEngine(directory);
+        engine.createTable("trips", List.of(new ColumnSpec("distance", ColumnType.LONG)));
+        Binder binder = new Binder(engine);
+
+        Statement statement = new DeleteStatement(
+                "trips",
+                Optional.of(new Predicate("distance", Comparison.EQUALS, "x")));
+
+        assertThrows(IllegalArgumentException.class, () -> binder.bind(statement));
+    }
 }
