@@ -129,3 +129,24 @@ statement=COPY table=trips rows=8 partitions=2 version=1 durationMs=12
 statement=DELETE table=trips rowsDeleted=4 partitionsRewritten=1 partitionsCarried=3 version=2 durationMs=9
 statement=SELECT table=trips rowsOut=4 partitionsRead=2 partitionsPruned=2 version=2 durationMs=3
 ```
+
+## Conflicts (Exercise 8)
+
+- **Rule: first committer wins.** A `COPY` or `DELETE` pins its base version at start. At commit,
+  inside the commit lock, the engine compares the base with the table's current version. Equal: swap
+  and increment. Different: another statement committed in between, so this one throws a
+  `ConflictException` and aborts.
+- **No visible change on abort.** Everything the loser wrote is in new partition files that no
+  catalog entry references until the swap, and the swap never happens. Those files become orphans,
+  cleaned up as described under *Orphans*.
+- **Log.** The engine logs `conflict table=trips base=1 current=2` at `ERROR`. Through the front door
+  the exception's message is the same text, so `./engine` prints `Error: conflict table=trips base=1
+  current=2` on stderr and exits with 1. No change to the front door was needed.
+- **One critical section.** Validation, catalog write and in-memory swap all run in the
+  `synchronized` method `validateAndPublish`, one writer at a time. Partition files need no lock,
+  because each statement writes its own new files with numbers reserved under the same lock.
+- **Test seam.** `StorageEngine.beforeCommit` is a package-private `Runnable` that runs at the start of
+  every commit, before the lock is taken. Production leaves it as a no-op. A test parks a writer in it
+  with a latch, lets a second writer commit, then releases the first. It must run outside the lock:
+  a writer parked inside the lock would block the winner forever.
+- **Retry.** An aborted statement can simply be rerun; it then pins the new version and commits.
