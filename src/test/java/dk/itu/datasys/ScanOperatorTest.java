@@ -21,7 +21,7 @@ class ScanOperatorTest {
         StorageEngine engine = goldenEngine(tempDir);
         List<PartitionMetadata> all = engine.tableMetadata("trips").partitions();
 
-        List<Object[]> rows = FilterOperatorTest.drain(new ScanOperator(engine, "trips", all));
+        List<Object[]> rows = FilterOperatorTest.drain(new ScanOperator(engine, "trips", COLUMNS, all));
 
         assertEquals(8, rows.size());
         assertEquals("Copenhagen", rows.get(0)[0]);
@@ -35,7 +35,7 @@ class ScanOperatorTest {
 
         // Partition 1 holds Odense,95 and Copenhagen,140; partition 3 holds Copenhagen,88 and Esbjerg,299
         List<Object[]> rows = FilterOperatorTest.drain(
-                new ScanOperator(engine, "trips", List.of(all.get(1), all.get(3))));
+                new ScanOperator(engine, "trips", COLUMNS, List.of(all.get(1), all.get(3))));
 
         assertEquals(4, rows.size());
         assertEquals(95L, rows.get(0)[1]);
@@ -47,7 +47,7 @@ class ScanOperatorTest {
     @Test
     void emptyPartitionListReadsNothingAndReturnsNothing(@TempDir Path tempDir) {
         StorageEngine engine = goldenEngine(tempDir);
-        ScanOperator scan = new ScanOperator(engine, "trips", List.of());
+        ScanOperator scan = new ScanOperator(engine, "trips", COLUMNS, List.of());
 
         scan.open();
         assertNull(scan.next());
@@ -58,7 +58,7 @@ class ScanOperatorTest {
     void schemaIsTheTableSchema(@TempDir Path tempDir) {
         StorageEngine engine = goldenEngine(tempDir);
 
-        assertEquals(COLUMNS, new ScanOperator(engine, "trips", List.of()).schema());
+        assertEquals(COLUMNS, new ScanOperator(engine, "trips", COLUMNS, List.of()).schema());
     }
 
     private static StorageEngine goldenEngine(Path dir) {

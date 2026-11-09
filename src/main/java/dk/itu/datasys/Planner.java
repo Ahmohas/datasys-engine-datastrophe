@@ -38,7 +38,7 @@ public final class Planner {
                         partition.file);
             }
             logStats(tableName, table, stats);
-            return new Plan(new ScanOperator(storage, tableName, table.partitions()), stats);
+            return new Plan(new ScanOperator(storage, tableName, table.columns(), table.partitions()), stats);
         }
 
         Predicate predicate = select.where().get();
@@ -69,7 +69,7 @@ public final class Planner {
         }
 
         logStats(tableName, table, stats);
-        Operator scan = new ScanOperator(storage, tableName, surviving);
+        Operator scan = new ScanOperator(storage, tableName, table.columns(), surviving);
         return new Plan(new FilterOperator(scan, predicate), stats);
     }
 

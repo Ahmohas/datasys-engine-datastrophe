@@ -1,9 +1,12 @@
 package dk.itu.datasys;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -234,7 +237,7 @@ public final class StorageEngine {
                     continue;
                 }
 
-                List<Object[]> rows = readPartition(base, partition);
+                List<Object[]> rows = readPartition(base.columns(), partition);
                 List<Object[]> kept = new ArrayList<>();
                 for (Object[] row : rows) {
                     if (!Pruning.matches(type, row[columnIndex], predicate.comparison(), predicate.constant())) {
@@ -270,16 +273,15 @@ public final class StorageEngine {
         return new DeleteResult(rowsDeleted, rewritten, carried, committed.version());
     }
 
-    /** Reads all rows of one partition of a table; used by ScanOperator. */
-    List<Object[]> readPartition(String tableName, PartitionMetadata partition) {
-        return readPartition(snapshot(tableName), partition);
-    }
-
-    private List<Object[]> readPartition(TableMetadata table, PartitionMetadata partition) {
+    /**
+     * Reads all rows of one partition, decoded with the columns of the caller's pinned
+     * version; used by ScanOperator and DELETE. Does not consult the catalog.
+     */
+    List<Object[]> readPartition(List<ColumnSpec> columns, PartitionMetadata partition) {
         try {
             return PartitionReader.read(
                     dataDirectory.resolve(partition.file),
-                    table.columns());
+                    columns);
         } catch (IOException e) {
             throw new RuntimeException(
                     "Failed to read partition: " + partition.file,
@@ -317,20 +319,45 @@ public final class StorageEngine {
         catalog.tables.put(tableName, table);
     }
 
-    /** Writes the whole catalog to a temporary file and renames it over catalog.json. */
+    /**
+     * Writes the whole catalog to a temporary file, forces it to disk, and renames it over
+     * catalog.json. Partition files were already forced when they were written, so a commit
+     * that survives a power loss never points at data that did not reach the disk.
+     */
     private void writeCatalog(Map<String, TableMetadata> tables) {
         Catalog snapshot = new Catalog();
         snapshot.tables.putAll(tables);
         Path temporary = catalogPath.resolveSibling("catalog.json.tmp");
         try {
-            objectMapper.writeValue(temporary.toFile(), snapshot);
+            try (FileChannel channel = FileChannel.open(
+                    temporary,
+                    StandardOpenOption.CREATE,
+                    StandardOpenOption.TRUNCATE_EXISTING,
+                    StandardOpenOption.WRITE)) {
+                channel.write(ByteBuffer.wrap(objectMapper.writeValueAsBytes(snapshot)));
+                channel.force(true);
+            }
             Files.move(
                     temporary,
                     catalogPath,
                     StandardCopyOption.ATOMIC_MOVE,
                     StandardCopyOption.REPLACE_EXISTING);
+            forceDirectory(dataDirectory);
         } catch (IOException e) {
             throw new RuntimeException("Failed to save catalog", e);
+        }
+    }
+
+    /**
+     * Makes the rename itself durable on POSIX file systems by syncing the directory entry.
+     * Windows cannot open a directory as a channel; there NTFS journals the rename, and
+     * this is a no-op.
+     */
+    private static void forceDirectory(Path directory) {
+        try (FileChannel channel = FileChannel.open(directory, StandardOpenOption.READ)) {
+            channel.force(true);
+        } catch (IOException e) {
+            // Not supported on this platform (Windows); see above
         }
     }
 

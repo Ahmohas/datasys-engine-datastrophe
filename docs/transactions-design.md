@@ -18,20 +18,22 @@ partition files and then commits a new partition list.
   table; there is no file per version. We chose this because it keeps one source of truth on disk
   and builds directly on Part 1's catalog. The cost: older versions exist only in memory, while
   some statement still references them.
-- **Not the in-memory-only variant.** Every commit is written to disk before it becomes visible, so a
-  crash loses at most the statement that was running.
+- **Not the in-memory-only variant.** Every commit is forced to disk before it becomes visible (see
+  *Commit*), so a crash of the engine process or of the machine loses at most the statement that
+  was running.
 
 ## Commit
 
 A commit replaces a table's partition list and increments its version in one step:
 
-1. All new partition files are written and closed first.
+1. All new partition files are written, **forced to disk** (`FileDescriptor.sync()`) and closed
+   first.
 2. Under one lock (`StorageEngine.commit`, `synchronized`), the engine checks that the table's
    current version is still the version the statement started from. Week 8's write-write conflict
    detection builds on this check; in week 7 it can only fail through a programming error.
-3. **On disk:** the whole catalog is written to `catalog.json.tmp` and then moved over
-   `catalog.json` with `ATOMIC_MOVE`. A reader of the file sees either the old or the new catalog,
-   never a mix. A crash before the move leaves the old catalog in place.
+3. **On disk:** the whole catalog is written to `catalog.json.tmp`, **forced to disk**
+   (`FileChannel.force`), and then moved over `catalog.json` with `ATOMIC_MOVE`. A reader of the file
+   sees either the old or the new catalog, never a mix.
 4. **In memory:** one reference assignment, `tables.put(name, next)` on a concurrent map, after the
    file is in place. A statement that looks the table up afterwards sees the new version; one that
    already pinned the old version keeps it.
@@ -39,14 +41,35 @@ A commit replaces a table's partition list and increments its version in one ste
 Disk first, memory second: if writing the catalog fails, the in-memory state does not move ahead
 of what is durable.
 
+**What survives which crash.**
+
+- *Engine process crash* (exception, `kill`): the operating system still writes out everything the
+  engine wrote. A crash before the move leaves the old catalog; after the move, the new one.
+- *Power loss or OS crash*: because the partition files and `catalog.json.tmp` are forced before
+  the move, a `catalog.json` that names a partition never points at data that did not reach the
+  disk. Whether the move itself survives depends on the directory entry reaching the disk. On
+  POSIX file systems the engine also syncs the data directory after the move. Java cannot open a
+  directory for syncing on Windows; there NTFS journals the rename. In both cases a lost move only
+  means the commit is lost and the previous version remains, which is still consistent.
+- *Cost*: one sync per partition file and one per commit. COPY with very small partitions pays for
+  this; the week 6 measurements were taken before these syncs existed.
+
 ## Snapshot
 
 - **What is pinned.** A reference to the immutable `TableMetadata` of the version. It already *is* a
   private copy: its partition list is unmodifiable, and the `PartitionMetadata` entries it points to
   are never changed after their partition is written. Nothing has to be copied.
-- **When.** At statement start, before binding: the executor pins the version for a `SELECT`, and
-  `StorageEngine.delete` and `copyFile` pin the version they start from as their first step. The
-  planner and the scan receive the pinned version and never look the table up again.
+- **When.** At the start of execution, right after binding. For a `SELECT` the executor pins the
+  version and passes it to the planner. `StorageEngine.delete` and `copyFile` pin the version they
+  start from as their first step. Binding happens just before, against the current schema. That is
+  safe because a table's columns never change after `CREATE TABLE` (there is no `ALTER` or `DROP`),
+  so the binder sees the same schema as the pinned version.
+- **No second lookup.** From the pin on, nothing re-reads the catalog: the planner takes partitions
+  and columns from the pinned version, `ScanOperator` gets both from the planner, and
+  `StorageEngine.readPartition` decodes a file with the columns it is given instead of looking the
+  table up. `DELETE` reads its rewrite set the same way. The only later catalog accesses are part
+  of committing: the version check in step 2 of *Commit*, and reserving the next partition file
+  number. Neither affects which rows the statement reads.
 
 ## Retention
 
