@@ -218,6 +218,9 @@ class ConflictIT {
         assertTrue(lines.stream().noneMatch(f -> f[6].startsWith("statement=DELETE ")),
                 "the loser's DELETE never commits");
         assertNotEquals(errors.get(0)[3], commits.get(0)[3], "winner and loser run on two threads");
+        // Every line must load back into the `logs` table, whose statementNumber is a LONG
+        assertTrue(lines.stream().allMatch(f -> f[2].matches("\\d+")),
+                "every line of the race has a statementNumber, on both threads");
     }
 
     /**

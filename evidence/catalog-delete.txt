@@ -1,0 +1,16 @@
+-- files in data/ after the DELETE
+catalog.json
+trips-partition-0.bin
+trips-partition-1.bin
+trips-partition-2.bin
+trips-partition-3.bin
+trips-partition-4.bin
+
+-- summary and decision lines
+1,statement=CREATE_TABLE table=trips version=0 durationMs=19
+2,statement=COPY table=trips rows=8 partitions=4 version=1 durationMs=33
+1,operation=delete partition=trips-partition-0.bin decision=CARRY
+1,operation=delete partition=trips-partition-1.bin decision=REWRITE replacement=trips-partition-4.bin rowsKept=1
+1,operation=delete partition=trips-partition-2.bin decision=CARRY
+1,operation=delete partition=trips-partition-3.bin decision=CARRY
+1,statement=DELETE table=trips rowsDeleted=1 partitionsRewritten=1 partitionsCarried=3 version=2 durationMs=37
