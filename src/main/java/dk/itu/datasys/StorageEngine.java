@@ -290,20 +290,39 @@ public final class StorageEngine {
     }
 
     /**
+     * Runs before a commit's validation, outside the commit lock. Production never touches it;
+     * a test parks a writer here to force the interleaving it wants to check.
+     */
+    volatile Runnable beforeCommit = () -> { };
+
+    /**
      * Makes a new version of the table visible: the next version number and the new partition
      * list, written to disk atomically and then swapped in memory with one reference
-     * assignment. Fails if another commit got in since the caller pinned {@code base}.
+     * assignment. First committer wins: if another commit got in since the caller pinned
+     * {@code base}, this statement aborts with a {@link ConflictException} and changes nothing.
      */
-    private synchronized TableMetadata commit(
+    private TableMetadata commit(
+            String tableName,
+            TableMetadata base,
+            List<PartitionMetadata> partitions) {
+
+        // Outside the lock: a writer parked here must not stop the other writer from committing
+        beforeCommit.run();
+        return validateAndPublish(tableName, base, partitions);
+    }
+
+    // One critical section: validate, swap and save, one writer at a time
+    private synchronized TableMetadata validateAndPublish(
             String tableName,
             TableMetadata base,
             List<PartitionMetadata> partitions) {
 
         TableMetadata current = snapshot(tableName);
         if (current.version() != base.version()) {
-            throw new IllegalStateException(
-                    "Concurrent commit on table " + tableName + ": started from version "
-                            + base.version() + " but the current version is " + current.version());
+            // The partitions this statement wrote are now orphans: no catalog entry references them
+            LOGGER.error("conflict table={} base={} current={}",
+                    tableName, base.version(), current.version());
+            throw new ConflictException(tableName, base.version(), current.version());
         }
         int nextPartition = Math.max(current.nextPartition(), reservedPartitions.getOrDefault(tableName, 0));
         TableMetadata next = current.next(nextPartition, partitions);
