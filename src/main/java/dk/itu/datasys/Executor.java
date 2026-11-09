@@ -52,20 +52,24 @@ public final class Executor {
             binder.bind(statement);
             switch (statement) {
                 case CreateTableStatement s -> {
-                    storage.createTable(s.tableName(), s.columns());
-                    LOGGER.debug("statement=CREATE_TABLE table={} durationMs={}",
-                            s.tableName(), elapsedMs(start));
+                    TableMetadata created = storage.createTable(s.tableName(), s.columns());
+                    LOGGER.debug("statement=CREATE_TABLE table={} version={} durationMs={}",
+                            s.tableName(), created.version(), elapsedMs(start));
                 }
                 case CopyStatement s -> {
-                    storage.copyFile(s.tableName(), s.csvFilePath());
-                    LOGGER.debug("statement=COPY table={} durationMs={}",
-                            s.tableName(), elapsedMs(start));
+                    CopyResult result = storage.copyFile(s.tableName(), s.csvFilePath());
+                    LOGGER.debug("statement=COPY table={} rows={} partitions={} version={} durationMs={}",
+                            s.tableName(), result.rows(), result.partitions(), result.version(),
+                            elapsedMs(start));
                 }
-                case SelectStatement s -> {
-                    long rowsOut = executeSelect(s);
-                    LOGGER.debug("statement=SELECT table={} rowsOut={} durationMs={}",
-                            s.tableName(), rowsOut, elapsedMs(start));
+                case DeleteStatement s -> {
+                    DeleteResult result = storage.delete(s.tableName(), s.where());
+                    LOGGER.debug("statement=DELETE table={} rowsDeleted={} partitionsRewritten={} "
+                                    + "partitionsCarried={} version={} durationMs={}",
+                            s.tableName(), result.rowsDeleted(), result.partitionsRewritten(),
+                            result.partitionsCarried(), result.version(), elapsedMs(start));
                 }
+                case SelectStatement s -> executeSelect(s, start);
             }
         } catch (RuntimeException e) {
             LOGGER.error("statement failed error={} durationMs={}", LogText.safe(e.getMessage()), elapsedMs(start));
@@ -73,8 +77,11 @@ public final class Executor {
         }
     }
 
-    private long executeSelect(SelectStatement select) {
-        Operator root = planner.plan(select).root();
+    private void executeSelect(SelectStatement select, long start) {
+        // Pin the version once; the plan and scan never look at the catalog again
+        TableMetadata snapshot = storage.snapshot(select.tableName());
+        Plan plan = planner.plan(select, snapshot);
+        Operator root = plan.root();
         long rows = 0;
         root.open();
         try {
@@ -86,7 +93,10 @@ public final class Executor {
         } finally {
             root.close();
         }
-        return rows;
+        LOGGER.debug("statement=SELECT table={} rowsOut={} partitionsRead={} partitionsPruned={} "
+                        + "version={} durationMs={}",
+                select.tableName(), rows, plan.stats().partitionsRead(), plan.stats().partitionsPruned(),
+                snapshot.version(), elapsedMs(start));
     }
 
     private static long elapsedMs(long startNanos) {

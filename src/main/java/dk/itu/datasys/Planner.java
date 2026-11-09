@@ -20,74 +20,73 @@ public final class Planner {
         this.storage = storage;
     }
 
+    /** Plans against the table's current version. */
     public Plan plan(SelectStatement select) {
-        String tableName = select.tableName();
-        TableMetadata table = storage.tableMetadata(tableName);
-        if (table == null) {
-            throw new IllegalArgumentException("Table does not exist: " + tableName);
-        }
+        return plan(select, storage.snapshot(select.tableName()));
+    }
 
-        ScanStats stats = new ScanStats(table.partitions.size());
+    /** Plans against a pinned version; the table is not looked up again. */
+    public Plan plan(SelectStatement select, TableMetadata table) {
+        String tableName = select.tableName();
+        ScanStats stats = new ScanStats(table.partitions().size());
 
         if (select.where().isEmpty()) {
-            for (PartitionMetadata partition : table.partitions) {
+            for (PartitionMetadata partition : table.partitions()) {
                 stats.recordRead();
                 LOGGER.debug(
                         "operation=plan partition={} decision=READ",
                         partition.file);
             }
-            logStats(tableName, stats);
-            return new Plan(new ScanOperator(storage, tableName, table.partitions), stats);
+            logStats(tableName, table, stats);
+            return new Plan(new ScanOperator(storage, tableName, table.columns(), table.partitions()), stats);
         }
 
         Predicate predicate = select.where().get();
         int columnIndex = columnIndex(table, predicate.columnName());
-        ColumnType type = table.columns.get(columnIndex).type();
+        ColumnType type = table.columns().get(columnIndex).type();
 
         List<PartitionMetadata> surviving = new ArrayList<>();
-        for (PartitionMetadata partition : table.partitions) {
-            Object min = partition.minValues.get(columnIndex);
-            Object max = partition.maxValues.get(columnIndex);
-
+        for (PartitionMetadata partition : table.partitions()) {
             LOGGER.debug(
                     "operation=plan partition={} column={} min={} max={}",
                     partition.file,
                     predicate.columnName(),
-                    LogText.safe(min),
-                    LogText.safe(max));
+                    LogText.safe(partition.minValues.get(columnIndex)),
+                    LogText.safe(partition.maxValues.get(columnIndex)));
 
-            if (Pruning.canPrune(type, min, max, predicate.comparison(), predicate.constant())) {
-                stats.recordPruned();
-                LOGGER.debug(
-                        "operation=plan partition={} decision=PRUNED",
-                        partition.file);
-            } else {
+            if (Pruning.mayContainMatch(type, partition, columnIndex, predicate)) {
                 stats.recordRead();
                 surviving.add(partition);
                 LOGGER.debug(
                         "operation=plan partition={} decision=READ",
                         partition.file);
+            } else {
+                stats.recordPruned();
+                LOGGER.debug(
+                        "operation=plan partition={} decision=PRUNED",
+                        partition.file);
             }
         }
 
-        logStats(tableName, stats);
-        Operator scan = new ScanOperator(storage, tableName, surviving);
+        logStats(tableName, table, stats);
+        Operator scan = new ScanOperator(storage, tableName, table.columns(), surviving);
         return new Plan(new FilterOperator(scan, predicate), stats);
     }
 
-    private static int columnIndex(TableMetadata table, String columnName) {
-        for (int i = 0; i < table.columns.size(); i++) {
-            if (table.columns.get(i).name().equals(columnName)) {
+    static int columnIndex(TableMetadata table, String columnName) {
+        for (int i = 0; i < table.columns().size(); i++) {
+            if (table.columns().get(i).name().equals(columnName)) {
                 return i;
             }
         }
         throw new IllegalArgumentException("Unknown column: " + columnName);
     }
 
-    private static void logStats(String tableName, ScanStats stats) {
+    private static void logStats(String tableName, TableMetadata table, ScanStats stats) {
         LOGGER.debug(
-                "operation=plan table={} partitionsTotal={} partitionsRead={} partitionsPruned={}",
+                "operation=plan table={} version={} partitionsTotal={} partitionsRead={} partitionsPruned={}",
                 tableName,
+                table.version(),
                 stats.partitionsTotal(),
                 stats.partitionsRead(),
                 stats.partitionsPruned());

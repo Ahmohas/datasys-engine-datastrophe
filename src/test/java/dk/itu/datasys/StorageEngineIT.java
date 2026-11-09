@@ -78,71 +78,71 @@ class StorageEngineIT {
         TableMetadata table =
                 engine.tableMetadata("trips");
 
-        assertEquals(4, table.partitions.size());
+        assertEquals(4, table.partitions().size());
 
         // Partition 0:
         // Copenhagen,12,23.5
         // Aarhus,187,301.0
         assertEquals("Aarhus",
-                table.partitions.get(0).minValues.get(0));
+                table.partitions().get(0).minValues.get(0));
         assertEquals("Copenhagen",
-                table.partitions.get(0).maxValues.get(0));
+                table.partitions().get(0).maxValues.get(0));
         assertEquals(12L,
-                table.partitions.get(0).minValues.get(1));
+                table.partitions().get(0).minValues.get(1));
         assertEquals(187L,
-                table.partitions.get(0).maxValues.get(1));
+                table.partitions().get(0).maxValues.get(1));
         assertEquals(23.5,
-                table.partitions.get(0).minValues.get(2));
+                table.partitions().get(0).minValues.get(2));
         assertEquals(301.0,
-                table.partitions.get(0).maxValues.get(2));
+                table.partitions().get(0).maxValues.get(2));
 
         // Partition 1:
         // Odense,95,120.75
         // Copenhagen,140,210.0
         assertEquals("Copenhagen",
-                table.partitions.get(1).minValues.get(0));
+                table.partitions().get(1).minValues.get(0));
         assertEquals("Odense",
-                table.partitions.get(1).maxValues.get(0));
+                table.partitions().get(1).maxValues.get(0));
         assertEquals(95L,
-                table.partitions.get(1).minValues.get(1));
+                table.partitions().get(1).minValues.get(1));
         assertEquals(140L,
-                table.partitions.get(1).maxValues.get(1));
+                table.partitions().get(1).maxValues.get(1));
         assertEquals(120.75,
-                table.partitions.get(1).minValues.get(2));
+                table.partitions().get(1).minValues.get(2));
         assertEquals(210.0,
-                table.partitions.get(1).maxValues.get(2));
+                table.partitions().get(1).maxValues.get(2));
 
         // Partition 2:
         // Aalborg,210,340.5
         // Roskilde,31,45.0
         assertEquals("Aalborg",
-                table.partitions.get(2).minValues.get(0));
+                table.partitions().get(2).minValues.get(0));
         assertEquals("Roskilde",
-                table.partitions.get(2).maxValues.get(0));
+                table.partitions().get(2).maxValues.get(0));
         assertEquals(31L,
-                table.partitions.get(2).minValues.get(1));
+                table.partitions().get(2).minValues.get(1));
         assertEquals(210L,
-                table.partitions.get(2).maxValues.get(1));
+                table.partitions().get(2).maxValues.get(1));
         assertEquals(45.0,
-                table.partitions.get(2).minValues.get(2));
+                table.partitions().get(2).minValues.get(2));
         assertEquals(340.5,
-                table.partitions.get(2).maxValues.get(2));
+                table.partitions().get(2).maxValues.get(2));
 
         // Partition 3:
         // Copenhagen,88,99.99
         // Esbjerg,299,450.25
         assertEquals("Copenhagen",
-                table.partitions.get(3).minValues.get(0));
+                table.partitions().get(3).minValues.get(0));
         assertEquals("Esbjerg",
-                table.partitions.get(3).maxValues.get(0));
+                table.partitions().get(3).maxValues.get(0));
         assertEquals(88L,
-                table.partitions.get(3).minValues.get(1));
+                table.partitions().get(3).minValues.get(1));
         assertEquals(299L,
-                table.partitions.get(3).maxValues.get(1));
+                table.partitions().get(3).maxValues.get(1));
         assertEquals(99.99,
-                table.partitions.get(3).minValues.get(2));
+                table.partitions().get(3).minValues.get(2));
         assertEquals(450.25,
-                table.partitions.get(3).maxValues.get(2));
+                table.partitions().get(3).maxValues.get(2));
     }
 
     private void createTripsTable(StorageEngine engine) {

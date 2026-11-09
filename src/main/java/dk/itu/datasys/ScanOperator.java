@@ -8,7 +8,9 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Reads every row of the partitions it is handed, in order. It never sees
- * the predicate: which partitions to read is decided by the planner.
+ * the predicate: which partitions to read is decided by the planner. Columns and
+ * partitions both come from the pinned table version; the scan never consults the
+ * catalog.
  */
 public final class ScanOperator implements Operator {
 
@@ -16,15 +18,21 @@ public final class ScanOperator implements Operator {
 
     private final StorageEngine storage;
     private final String tableName;
+    private final List<ColumnSpec> columns;
     private final List<PartitionMetadata> partitions;
 
     private int nextPartition;
     private Iterator<Object[]> currentRows;
     private long rowsOut;
 
-    public ScanOperator(StorageEngine storage, String tableName, List<PartitionMetadata> partitions) {
+    public ScanOperator(
+            StorageEngine storage,
+            String tableName,
+            List<ColumnSpec> columns,
+            List<PartitionMetadata> partitions) {
         this.storage = storage;
         this.tableName = tableName;
+        this.columns = List.copyOf(columns);
         this.partitions = List.copyOf(partitions);
     }
 
@@ -42,7 +50,7 @@ public final class ScanOperator implements Operator {
             if (nextPartition >= partitions.size()) {
                 return null;
             }
-            currentRows = storage.readPartition(tableName, partitions.get(nextPartition++)).iterator();
+            currentRows = storage.readPartition(columns, partitions.get(nextPartition++)).iterator();
         }
         rowsOut++;
         return currentRows.next();
@@ -60,7 +68,7 @@ public final class ScanOperator implements Operator {
 
     @Override
     public List<ColumnSpec> schema() {
-        return storage.schema(tableName);
+        return columns;
     }
 
     public String tableName() {

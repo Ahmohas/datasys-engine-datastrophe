@@ -1,6 +1,7 @@
 package dk.itu.datasys;
 
 import java.util.List;
+import java.util.Optional;
 
 public final class Binder {
 
@@ -14,7 +15,8 @@ public final class Binder {
         switch (statement) {
             case CreateTableStatement s -> bindCreateTable(s);
             case CopyStatement s -> bindCopy(s);
-            case SelectStatement s -> bindSelect(s);
+            case SelectStatement s -> bindWhere(s.tableName(), s.where());
+            case DeleteStatement s -> bindWhere(s.tableName(), s.where());
         }
     }
 
@@ -36,11 +38,12 @@ public final class Binder {
         engine.schema(s.tableName());
     }
 
-    private void bindSelect(SelectStatement s) {
-        List<ColumnSpec> columns = engine.schema(s.tableName());
+    // SELECT and DELETE: the table exists; a WHERE names an existing column with a constant of its type
+    private void bindWhere(String tableName, Optional<Predicate> where) {
+        List<ColumnSpec> columns = engine.schema(tableName);
 
-        if (s.where().isPresent()) {
-            Predicate predicate = s.where().get();
+        if (where.isPresent()) {
+            Predicate predicate = where.get();
             ColumnSpec column = findColumn(columns, predicate.columnName());
             validateConstantType(column, predicate.constant());
         }

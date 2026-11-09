@@ -1,8 +1,9 @@
 package dk.itu.datasys;
 
+import java.io.BufferedOutputStream;
 import java.io.DataOutputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
@@ -47,8 +48,8 @@ final class PartitionWriter {
             }
         }
 
-        try (DataOutputStream out =
-                     new DataOutputStream(Files.newOutputStream(partitionPath))) {
+        try (FileOutputStream file = new FileOutputStream(partitionPath.toFile());
+             DataOutputStream out = new DataOutputStream(new BufferedOutputStream(file))) {
 
             BinaryFormat.writeHeader(out, rows.size());
 
@@ -63,6 +64,10 @@ final class PartitionWriter {
             }
 
             writeFooter(out, columns, metadata);
+
+            // On disk before any catalog can reference it: a commit must survive a power loss
+            out.flush();
+            file.getFD().sync();
         }
 
         return metadata;
