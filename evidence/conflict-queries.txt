@@ -1,0 +1,35 @@
+-- SELECT * FROM logs WHERE logLevel = 'ERROR';
+2026-11-09 20:32:46.993,586a7913-1877-449a-b649-fb3b5da96b27,1,38,ERROR,StorageEngine,conflict table=trips base=1 current=2
+
+-- loser thread 38, winner thread 3
+
+-- SELECT * FROM logs WHERE threadId = 38;
+2026-11-09 20:32:46.967,586a7913-1877-449a-b649-fb3b5da96b27,0,38,DEBUG,SqlParser,statements=1 durationMs=46
+2026-11-09 20:32:46.971,586a7913-1877-449a-b649-fb3b5da96b27,1,38,DEBUG,StorageEngine,operation=delete table=trips where=city EQUALS Copenhagen
+2026-11-09 20:32:46.979,586a7913-1877-449a-b649-fb3b5da96b27,1,38,DEBUG,StorageEngine,operation=delete table=trips partition=trips-partition-1.bin column=city min=Aalborg max=Roskilde
+2026-11-09 20:32:46.980,586a7913-1877-449a-b649-fb3b5da96b27,1,38,DEBUG,StorageEngine,operation=delete table=trips partition=trips-partition-1.bin column=distance min=31 max=299
+2026-11-09 20:32:46.980,586a7913-1877-449a-b649-fb3b5da96b27,1,38,DEBUG,StorageEngine,operation=delete table=trips partition=trips-partition-1.bin column=price min=45.0 max=450.25
+2026-11-09 20:32:46.980,586a7913-1877-449a-b649-fb3b5da96b27,1,38,DEBUG,StorageEngine,operation=delete partition=trips-partition-0.bin decision=REWRITE replacement=trips-partition-1.bin rowsKept=5
+2026-11-09 20:32:46.993,586a7913-1877-449a-b649-fb3b5da96b27,1,38,ERROR,StorageEngine,conflict table=trips base=1 current=2
+
+-- SELECT * FROM logs WHERE threadId = 3;
+2026-11-09 20:32:46.851,e2c977b5-d02e-42f6-934d-4fd73bcf1dbc,0,3,DEBUG,StorageEngine,operation=createTable table=trips columnCount=3
+2026-11-09 20:32:46.870,e2c977b5-d02e-42f6-934d-4fd73bcf1dbc,0,3,DEBUG,StorageEngine,operation=copyFile table=trips file=src\test\resources\trips.csv
+2026-11-09 20:32:46.882,e2c977b5-d02e-42f6-934d-4fd73bcf1dbc,0,3,DEBUG,StorageEngine,operation=copyFile table=trips partition=trips-partition-0.bin column=city min=Aalborg max=Roskilde
+2026-11-09 20:32:46.882,e2c977b5-d02e-42f6-934d-4fd73bcf1dbc,0,3,DEBUG,StorageEngine,operation=copyFile table=trips partition=trips-partition-0.bin column=distance min=12 max=299
+2026-11-09 20:32:46.883,e2c977b5-d02e-42f6-934d-4fd73bcf1dbc,0,3,DEBUG,StorageEngine,operation=copyFile table=trips partition=trips-partition-0.bin column=price min=23.5 max=450.25
+2026-11-09 20:32:46.896,e2c977b5-d02e-42f6-934d-4fd73bcf1dbc,0,3,DEBUG,StorageEngine,operation=copyFile table=trips partitionsCreated=1 version=1
+2026-11-09 20:32:46.982,e2c977b5-d02e-42f6-934d-4fd73bcf1dbc,0,3,DEBUG,SqlParser,statements=1 durationMs=1
+2026-11-09 20:32:46.982,e2c977b5-d02e-42f6-934d-4fd73bcf1dbc,1,3,DEBUG,StorageEngine,operation=copyFile table=trips file=src\test\resources\sorted-trips.csv
+2026-11-09 20:32:46.987,e2c977b5-d02e-42f6-934d-4fd73bcf1dbc,1,3,DEBUG,StorageEngine,operation=copyFile table=trips partition=trips-partition-2.bin column=city min=Aalborg max=Roskilde
+2026-11-09 20:32:46.988,e2c977b5-d02e-42f6-934d-4fd73bcf1dbc,1,3,DEBUG,StorageEngine,operation=copyFile table=trips partition=trips-partition-2.bin column=distance min=12 max=299
+2026-11-09 20:32:46.988,e2c977b5-d02e-42f6-934d-4fd73bcf1dbc,1,3,DEBUG,StorageEngine,operation=copyFile table=trips partition=trips-partition-2.bin column=price min=23.5 max=450.25
+2026-11-09 20:32:46.993,e2c977b5-d02e-42f6-934d-4fd73bcf1dbc,1,3,DEBUG,StorageEngine,operation=copyFile table=trips partitionsCreated=1 version=2
+2026-11-09 20:32:46.993,e2c977b5-d02e-42f6-934d-4fd73bcf1dbc,1,3,DEBUG,Executor,statement=COPY table=trips rows=8 partitions=1 version=2 durationMs=10
+2026-11-09 20:32:46.997,e2c977b5-d02e-42f6-934d-4fd73bcf1dbc,0,3,DEBUG,SqlParser,statements=1 durationMs=0
+2026-11-09 20:32:46.999,e2c977b5-d02e-42f6-934d-4fd73bcf1dbc,1,3,DEBUG,Planner,operation=plan partition=trips-partition-0.bin decision=READ
+2026-11-09 20:32:46.999,e2c977b5-d02e-42f6-934d-4fd73bcf1dbc,1,3,DEBUG,Planner,operation=plan partition=trips-partition-2.bin decision=READ
+2026-11-09 20:32:46.999,e2c977b5-d02e-42f6-934d-4fd73bcf1dbc,1,3,DEBUG,Planner,operation=plan table=trips version=2 partitionsTotal=2 partitionsRead=2 partitionsPruned=0
+2026-11-09 20:32:47.013,e2c977b5-d02e-42f6-934d-4fd73bcf1dbc,1,3,DEBUG,ScanOperator,operator=Scan table=trips partitions=2 rowsOut=16
+2026-11-09 20:32:47.013,e2c977b5-d02e-42f6-934d-4fd73bcf1dbc,1,3,DEBUG,Executor,statement=SELECT table=trips rowsOut=16 partitionsRead=2 partitionsPruned=0 version=2 durationMs=14
+

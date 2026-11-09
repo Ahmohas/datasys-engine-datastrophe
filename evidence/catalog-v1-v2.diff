@@ -1,0 +1,25 @@
+--- catalog-v1.json
++++ catalog-v2.json
+@@ -11,17 +11,17 @@
+         "name" : "price",
+         "type" : "DOUBLE"
+       } ],
+-      "version" : 1,
+-      "nextPartition" : 4,
++      "version" : 2,
++      "nextPartition" : 5,
+       "partitions" : [ {
+         "file" : "trips-partition-0.bin",
+         "rowCount" : 2,
+         "minValues" : [ "Copenhagen", 12, 23.5 ],
+         "maxValues" : [ "Roskilde", 31, 45.0 ]
+       }, {
+-        "file" : "trips-partition-1.bin",
+-        "rowCount" : 2,
+-        "minValues" : [ "Copenhagen", 88, 99.99 ],
++        "file" : "trips-partition-4.bin",
++        "rowCount" : 1,
++        "minValues" : [ "Odense", 95, 120.75 ],
+         "maxValues" : [ "Odense", 95, 120.75 ]
+       }, {
+         "file" : "trips-partition-2.bin",

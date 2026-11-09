@@ -32,7 +32,10 @@ public final class Executor {
     }
 
     public void executeScript(String sqlText) {
-        // Script-level parsing is outside any statement, so it logs under statementNumber 0
+        // Script-level parsing is outside any statement, so it logs under statementNumber 0.
+        // Set it here, not only in Engine.main: the MDC is per thread, and a script run on any
+        // other thread would otherwise log an empty field that COPY into `logs` rejects.
+        MDC.put("statementNumber", "0");
         List<Statement> statements = parser.parse(sqlText);
         try {
             for (Statement statement : statements) {

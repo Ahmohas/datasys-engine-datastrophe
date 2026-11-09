@@ -1,0 +1,39 @@
+{
+  "tables" : {
+    "trips" : {
+      "columns" : [ {
+        "name" : "city",
+        "type" : "STRING"
+      }, {
+        "name" : "distance",
+        "type" : "LONG"
+      }, {
+        "name" : "price",
+        "type" : "DOUBLE"
+      } ],
+      "version" : 2,
+      "nextPartition" : 5,
+      "partitions" : [ {
+        "file" : "trips-partition-0.bin",
+        "rowCount" : 2,
+        "minValues" : [ "Copenhagen", 12, 23.5 ],
+        "maxValues" : [ "Roskilde", 31, 45.0 ]
+      }, {
+        "file" : "trips-partition-4.bin",
+        "rowCount" : 1,
+        "minValues" : [ "Odense", 95, 120.75 ],
+        "maxValues" : [ "Odense", 95, 120.75 ]
+      }, {
+        "file" : "trips-partition-2.bin",
+        "rowCount" : 2,
+        "minValues" : [ "Aarhus", 140, 210.0 ],
+        "maxValues" : [ "Copenhagen", 187, 301.0 ]
+      }, {
+        "file" : "trips-partition-3.bin",
+        "rowCount" : 2,
+        "minValues" : [ "Aalborg", 210, 340.5 ],
+        "maxValues" : [ "Esbjerg", 299, 450.25 ]
+      } ]
+    }
+  }
+}
