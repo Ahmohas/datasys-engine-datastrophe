@@ -71,6 +71,9 @@ public final class Executor {
                 }
                 case SelectStatement s -> executeSelect(s, start);
             }
+        } catch (ConflictException e) {
+            // StorageEngine already logged the conflict: one ERROR line per aborted statement
+            throw e;
         } catch (RuntimeException e) {
             LOGGER.error("statement failed error={} durationMs={}", LogText.safe(e.getMessage()), elapsedMs(start));
             throw e;

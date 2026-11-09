@@ -3,15 +3,18 @@ package dk.itu.datasys;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -21,6 +24,7 @@ import java.util.concurrent.Future;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.slf4j.MDC;
 
 /**
  * Conflict detection between concurrent writers. Every race is forced through the
@@ -169,23 +173,51 @@ class ConflictIT {
         assertEquals(TRIPS + SORTED + TRIPS, select(storage));
     }
 
+    // Both writers run as SQL through an Executor, so engine.log tells the story of the race:
+    // two threads, one version committed by the winner, one ERROR line for the loser
     @Test
-    void sqlDeleteThatLosesTheRaceFailsWithTheConflictMessage(@TempDir Path dir) throws Exception {
-        // The loser runs as SQL through the executor, the same path ./engine uses
+    void sqlRaceLeavesOneCommitAndOneErrorLineOnTwoThreads(@TempDir Path dir) throws Exception {
         StorageEngine storage = tripsAtVersionOne(dir);
-        Executor sql = new Executor(storage, new PrintStream(new ByteArrayOutputStream(), true, StandardCharsets.UTF_8));
+        PrintStream discard = new PrintStream(new ByteArrayOutputStream(), true, StandardCharsets.UTF_8);
+        Executor loserSql = new Executor(storage, discard);
+        Executor winnerSql = new Executor(storage, discard);
+        int linesBefore = logLines().size();
 
         ConflictException conflict = raceAndLose(
                 storage,
                 () -> {
-                    sql.executeScript("DELETE FROM trips WHERE city = 'Copenhagen';");
+                    // The loser's pool thread has no session yet; give it one, as Engine.main would
+                    MDC.put("sessionId", UUID.randomUUID().toString());
+                    try {
+                        loserSql.executeScript("DELETE FROM trips WHERE city = 'Copenhagen';");
+                    } finally {
+                        MDC.remove("sessionId");
+                    }
                     return null;
                 },
-                () -> storage.copyFile("trips", SORTED_CSV));
+                () -> winnerSql.executeScript("COPY trips FROM '" + SORTED_CSV + "';"));
 
-        // Engine.run prints exactly this message to stderr as "Error: ..."
         assertEquals("conflict table=trips base=1 current=2", conflict.getMessage());
         assertEquals(TRIPS + SORTED, select(storage));
+
+        // Fields: timestamp, sessionId, statementNumber, threadId, logLevel, className, logMessage
+        List<String[]> lines = logLines().subList(linesBefore, logLines().size()).stream()
+                .map(line -> line.split(",", 7))
+                .filter(fields -> fields.length == 7)
+                .toList();
+
+        List<String[]> errors = lines.stream().filter(f -> f[4].equals("ERROR")).toList();
+        assertEquals(1, errors.size(), "exactly one ERROR line for the loser");
+        assertEquals("conflict table=trips base=1 current=2", errors.get(0)[6]);
+
+        List<String[]> commits = lines.stream()
+                .filter(f -> f[6].startsWith("statement=COPY table=trips ") && f[6].contains(" version=2 "))
+                .toList();
+        assertEquals(1, commits.size(), "the winner's COPY commits version 2");
+
+        assertTrue(lines.stream().noneMatch(f -> f[6].startsWith("statement=DELETE ")),
+                "the loser's DELETE never commits");
+        assertNotEquals(errors.get(0)[3], commits.get(0)[3], "winner and loser run on two threads");
     }
 
     /**
@@ -238,6 +270,12 @@ class ConflictIT {
             Thread.currentThread().interrupt();
             throw new AssertionError("interrupted while parked in beforeCommit", e);
         }
+    }
+
+    // Every line engine.log holds so far; tests compare before and after a run
+    private static List<String> logLines() throws java.io.IOException {
+        Path log = Path.of("logs", "engine.log");
+        return Files.exists(log) ? Files.readAllLines(log, StandardCharsets.UTF_8) : List.of();
     }
 
     private static StorageEngine tripsAtVersionOne(Path dir) {

@@ -150,3 +150,10 @@ statement=SELECT table=trips rowsOut=4 partitionsRead=2 partitionsPruned=2 versi
   with a latch, lets a second writer commit, then releases the first. It must run outside the lock:
   a writer parked inside the lock would block the winner forever.
 - **Retry.** An aborted statement can simply be rerun; it then pins the new version and commits.
+- **One ERROR line per conflict.** `StorageEngine` logs the conflict, and `Executor` skips its
+  generic `statement failed` line for a `ConflictException`. A `logLevel = 'ERROR'` query over
+  `engine.log` therefore counts each aborted statement once.
+- **Scope: one process.** Conflict detection covers statements within one engine process. The engine
+  assumes one process per data directory: each `./engine` run loads `catalog.json` once at startup,
+  so two concurrent runs on the same `data/` do not see each other's commits, and the later commit
+  overwrites the earlier one's catalog.
