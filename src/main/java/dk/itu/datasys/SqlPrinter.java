@@ -1,6 +1,8 @@
 package dk.itu.datasys;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
 
@@ -10,7 +12,7 @@ public final class SqlPrinter {
         return switch (statement) {
             case CreateTableStatement s -> printCreateTable(s);
             case CopyStatement s -> printCopy(s);
-            case SelectStatement s -> printWhere("SELECT * FROM " + s.tableName(), s.where());
+            case SelectStatement s -> printSelect(s);
             case DeleteStatement s -> printWhere("DELETE FROM " + s.tableName(), s.where());
         };
     }
@@ -33,18 +35,26 @@ public final class SqlPrinter {
         return "COPY " + s.tableName() + " FROM '" + s.csvFilePath() + "';";
     }
 
+    // Filters first, then joins: a fixed order, and reparsing sorts them back into the same lists
+    private String printSelect(SelectStatement s) {
+        List<String> conditions = new ArrayList<>();
+        s.filters().forEach(filter -> conditions.add(printFilter(filter)));
+        s.joins().forEach(join -> conditions.add(join.leftColumn() + " = " + join.rightColumn()));
+        String base = "SELECT * FROM " + String.join(", ", s.tableNames());
+        return conditions.isEmpty() ? base + ";" : base + " WHERE " + String.join(" AND ", conditions) + ";";
+    }
+
     private String printWhere(String base, Optional<Predicate> where) {
-        if (where.isEmpty()) {
-            return base + ";";
-        }
-        Predicate p = where.get();
+        return where.isEmpty() ? base + ";" : base + " WHERE " + printFilter(where.get()) + ";";
+    }
+
+    private String printFilter(Predicate p) {
         String operator = switch (p.comparison()) {
             case EQUALS -> "=";
             case LESS_THAN -> "<";
             case GREATER_THAN -> ">";
         };
-        String constant = printLiteral(p.constant());
-        return base + " WHERE " + p.columnName() + " " + operator + " " + constant + ";";
+        return p.columnName() + " " + operator + " " + printLiteral(p.constant());
     }
 
         private String printLiteral(Object value) {

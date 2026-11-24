@@ -1,7 +1,10 @@
 package dk.itu.datasys;
 
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 public final class Binder {
 
@@ -15,7 +18,7 @@ public final class Binder {
         switch (statement) {
             case CreateTableStatement s -> bindCreateTable(s);
             case CopyStatement s -> bindCopy(s);
-            case SelectStatement s -> bindWhere(s.tableName(), s.where());
+            case SelectStatement s -> bindSelect(s);
             case DeleteStatement s -> bindWhere(s.tableName(), s.where());
         }
     }
@@ -38,7 +41,44 @@ public final class Binder {
         engine.schema(s.tableName());
     }
 
-    // SELECT and DELETE: the table exists; a WHERE names an existing column with a constant of its type
+    // SELECT: every table exists once; every column name resolves to exactly one listed table;
+    // filters compare with a constant of the column's type; joins connect two different tables
+    // through columns of the same type (the hash join compares keys with equals())
+    private void bindSelect(SelectStatement s) {
+        if (s.tableNames().isEmpty()) {
+            throw new IllegalArgumentException("FROM list cannot be empty");
+        }
+        Set<String> seen = new HashSet<>();
+        List<List<ColumnSpec>> schemas = new ArrayList<>();
+        for (String table : s.tableNames()) {
+            if (!seen.add(table)) {
+                throw new IllegalArgumentException("Table listed twice in FROM: " + table);
+            }
+            schemas.add(engine.schema(table));
+        }
+        ColumnResolver resolver = new ColumnResolver(s.tableNames(), schemas);
+
+        for (Predicate filter : s.filters()) {
+            ColumnResolver.Column column = resolver.resolve(filter.columnName());
+            validateConstantType(new ColumnSpec(column.name(), column.type()), filter.constant());
+        }
+        for (JoinPredicate join : s.joins()) {
+            ColumnResolver.Column left = resolver.resolve(join.leftColumn());
+            ColumnResolver.Column right = resolver.resolve(join.rightColumn());
+            if (left.table() == right.table()) {
+                throw new IllegalArgumentException("Join " + left.name() + " = " + right.name()
+                        + " compares two columns of table " + left.tableName()
+                        + "; a join must connect two different tables");
+            }
+            if (left.type() != right.type()) {
+                throw new IllegalArgumentException("Join " + left.name() + " = " + right.name()
+                        + " compares " + left.type() + " with " + right.type()
+                        + "; both sides must have the same type");
+            }
+        }
+    }
+
+    // DELETE: the table exists; a WHERE names an existing column with a constant of its type
     private void bindWhere(String tableName, Optional<Predicate> where) {
         List<ColumnSpec> columns = engine.schema(tableName);
 

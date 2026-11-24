@@ -84,9 +84,10 @@ public final class Executor {
     }
 
     private void executeSelect(SelectStatement select, long start) {
-        // Pin the version once; the plan and scan never look at the catalog again
-        TableMetadata snapshot = storage.snapshot(select.tableName());
-        Plan plan = planner.plan(select, snapshot);
+        // Pin one version per table at statement start; the plan and scans never look at the
+        // catalog again
+        List<TableMetadata> snapshots = select.tableNames().stream().map(storage::snapshot).toList();
+        Plan plan = planner.plan(select, snapshots);
         Operator root = plan.root();
         long rows = 0;
         root.open();
@@ -99,10 +100,13 @@ public final class Executor {
         } finally {
             root.close();
         }
+        // One table: table=trips version=3, as before. Several: table=orders+customers version=1+1
         LOGGER.debug("statement=SELECT table={} rowsOut={} partitionsRead={} partitionsPruned={} "
                         + "version={} durationMs={}",
-                select.tableName(), rows, plan.stats().partitionsRead(), plan.stats().partitionsPruned(),
-                snapshot.version(), elapsedMs(start));
+                String.join("+", select.tableNames()), rows, plan.stats().partitionsRead(),
+                plan.stats().partitionsPruned(),
+                String.join("+", snapshots.stream().map(t -> String.valueOf(t.version())).toList()),
+                elapsedMs(start));
     }
 
     private static long elapsedMs(long startNanos) {
