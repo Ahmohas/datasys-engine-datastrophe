@@ -25,29 +25,45 @@ public final class SqlAstBuilder extends SqlBaseVisitor<Object> {
         return new CopyStatement(tableName, csvFilePath);
     }
 
-    // Called once per SELECT statement
+    // Called once per SELECT statement: sorts each WHERE predicate into filters or joins
     @Override
     public Object visitSelect(SqlParser.SelectContext ctx) {
-        String tableName = ctx.IDENTIFIER().getText();
-        Optional<Predicate> where = buildWhereClause(ctx.predicate());
-        return new SelectStatement(tableName, where);
+        List<String> tableNames = ctx.IDENTIFIER().stream().map(token -> token.getText()).toList();
+        List<Predicate> filters = new ArrayList<>();
+        List<JoinPredicate> joins = new ArrayList<>();
+        if (ctx.condition() != null) {
+            for (SqlParser.PredicateContext predicate : ctx.condition().predicate()) {
+                switch (visit(predicate)) {
+                    case Predicate filter -> filters.add(filter);
+                    case JoinPredicate join -> joins.add(join);
+                    default -> throw new IllegalStateException("Unknown predicate: " + predicate.getText());
+                }
+            }
+        }
+        return new SelectStatement(tableNames, filters, joins);
     }
 
     // Called once per DELETE statement
     @Override
     public Object visitDelete(SqlParser.DeleteContext ctx) {
         String tableName = ctx.IDENTIFIER().getText();
-        Optional<Predicate> where = buildWhereClause(ctx.predicate());
+        Optional<Predicate> where = buildWhereClause(ctx.filter());
         return new DeleteStatement(tableName, where);
     }
 
-    // Called for the WHERE column = / < / > value part, if present
+    // A column compared with a constant: column = / < / > value
     @Override
-    public Object visitPredicate(SqlParser.PredicateContext ctx) {
+    public Object visitFilter(SqlParser.FilterContext ctx) {
         String columnName = ctx.IDENTIFIER().getText();
         Comparison comparison = parseComparison(ctx.comparison.getText());
         Object constant = visit(ctx.literal());
         return new Predicate(columnName, comparison, constant);
+    }
+
+    // A column compared with a column: left = right
+    @Override
+    public Object visitJoin(SqlParser.JoinContext ctx) {
+        return new JoinPredicate(ctx.left.getText(), ctx.right.getText());
     }
 
     // Converts a literal token into its real Java type (String/Long/Double)
@@ -92,11 +108,11 @@ public final class SqlAstBuilder extends SqlBaseVisitor<Object> {
     }
 
     // WHERE is optional in our grammar, so this can return empty
-    private Optional<Predicate> buildWhereClause(SqlParser.PredicateContext predicate) {
-        if (predicate == null) {
+    private Optional<Predicate> buildWhereClause(SqlParser.FilterContext filter) {
+        if (filter == null) {
             return Optional.empty();
         }
-        return Optional.of((Predicate) visit(predicate));
+        return Optional.of((Predicate) visit(filter));
     }
 
     // Maps the STRING/LONG/DOUBLE keyword token to our ColumnType enum

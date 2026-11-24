@@ -87,4 +87,37 @@ class SqlPrinterTest {
                 "trips",
                 Optional.of(new Predicate("city", Comparison.EQUALS, "Odense"))));
     }
+
+    // ---- Exercise 10: table lists, filters and joins
+
+    @Test
+    void roundTripsTableList() {
+        assertRoundTrips(new SelectStatement(List.of("orders", "customers"), List.of(), List.of()));
+    }
+
+    @Test
+    void roundTripsFiltersAndJoins() {
+        assertRoundTrips(new SelectStatement(
+                List.of("orders", "customers", "products", "cities"),
+                List.of(
+                        new Predicate("c_city", Comparison.EQUALS, "Copenhagen"),
+                        new Predicate("o_quantity", Comparison.GREATER_THAN, 1L),
+                        new Predicate("p_price", Comparison.LESS_THAN, 500.0)),
+                List.of(
+                        new JoinPredicate("o_custname", "c_name"),
+                        new JoinPredicate("o_prodname", "p_name"),
+                        new JoinPredicate("c_city", "ct_city"))));
+    }
+
+    @Test
+    void printsFiltersBeforeJoins() {
+        SelectStatement select = new SelectStatement(
+                List.of("orders", "customers"),
+                List.of(new Predicate("c_city", Comparison.EQUALS, "Aarhus")),
+                List.of(new JoinPredicate("o_custname", "c_name")));
+
+        assertEquals(
+                "SELECT * FROM orders, customers WHERE c_city = 'Aarhus' AND o_custname = c_name;",
+                printer.print(select));
+    }
 }

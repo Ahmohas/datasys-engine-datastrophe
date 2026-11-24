@@ -68,19 +68,19 @@ class SqlParserTest {
     void literalTypesAreCorrect() {
         Statement stmt = parser.parse(
                 "SELECT * FROM trips WHERE distance = 12;").get(0);
-        Predicate p = ((SelectStatement) stmt).where().get();
+        Predicate p = ((SelectStatement) stmt).filters().get(0);
         assertEquals(12L, p.constant());
         assertTrue(p.constant() instanceof Long);
 
         stmt = parser.parse(
                 "SELECT * FROM trips WHERE price = 12.0;").get(0);
-        p = ((SelectStatement) stmt).where().get();
+        p = ((SelectStatement) stmt).filters().get(0);
         assertEquals(12.0, p.constant());
         assertTrue(p.constant() instanceof Double);
 
         stmt = parser.parse(
                 "SELECT * FROM trips WHERE city = '12';").get(0);
-        p = ((SelectStatement) stmt).where().get();
+        p = ((SelectStatement) stmt).filters().get(0);
         assertEquals("12", p.constant());
         assertTrue(p.constant() instanceof String);
     }
@@ -89,12 +89,12 @@ class SqlParserTest {
     void negativeLiteralsAreParsed() {
         Statement stmt = parser.parse(
                 "SELECT * FROM trips WHERE distance = -1;").get(0);
-        Predicate p = ((SelectStatement) stmt).where().get();
+        Predicate p = ((SelectStatement) stmt).filters().get(0);
         assertEquals(-1L, p.constant());
 
         stmt = parser.parse(
                 "SELECT * FROM trips WHERE price = -1.5;").get(0);
-        p = ((SelectStatement) stmt).where().get();
+        p = ((SelectStatement) stmt).filters().get(0);
         assertEquals(-1.5, p.constant());
     }
 
@@ -208,5 +208,69 @@ class SqlParserTest {
                 () -> parser.parse("DELETE trips;"));
         assertEquals(1, e.line());
         assertEquals(7, e.column());
+    }
+
+    // ---- Exercise 10: table lists and AND
+
+    @Test
+    void parsesTableListWithoutWhere() {
+        assertEquals(
+                List.of(new SelectStatement(List.of("orders", "customers"), List.of(), List.of())),
+                parser.parse("SELECT * FROM orders, customers;"));
+    }
+
+    @Test
+    void columnToColumnIsAJoinAndColumnToConstantIsAFilter() {
+        assertEquals(
+                List.of(new SelectStatement(
+                        List.of("orders", "customers", "products"),
+                        List.of(new Predicate("c_city", Comparison.EQUALS, "Copenhagen")),
+                        List.of(
+                                new JoinPredicate("o_custname", "c_name"),
+                                new JoinPredicate("o_prodname", "p_name")))),
+                parser.parse("""
+                        SELECT * FROM orders, customers, products
+                        WHERE o_custname = c_name AND c_city = 'Copenhagen' AND o_prodname = p_name;
+                        """));
+    }
+
+    @Test
+    void andChainKeepsEveryFilterInOrder() {
+        SelectStatement select = (SelectStatement) parser.parse(
+                "select * from orders where o_quantity > 1 and o_custname = 'Bob' AND o_orderkey < 200;")
+                .get(0);
+
+        assertEquals(
+                List.of(
+                        new Predicate("o_quantity", Comparison.GREATER_THAN, 1L),
+                        new Predicate("o_custname", Comparison.EQUALS, "Bob"),
+                        new Predicate("o_orderkey", Comparison.LESS_THAN, 200L)),
+                select.filters());
+        assertEquals(List.of(), select.joins());
+    }
+
+    @Test
+    void joinMayOnlyUseEquals() {
+        SqlParseException e = assertThrows(
+                SqlParseException.class,
+                () -> parser.parse("SELECT * FROM orders, customers WHERE o_custname < c_name;"));
+        assertEquals(1, e.line());
+    }
+
+    @Test
+    void danglingAndIsASyntaxError() {
+        assertThrows(
+                SqlParseException.class,
+                () -> parser.parse("SELECT * FROM orders WHERE o_quantity > 1 AND;"));
+    }
+
+    @Test
+    void deleteStillTakesOneFilterOnly() {
+        assertThrows(
+                SqlParseException.class,
+                () -> parser.parse("DELETE FROM orders WHERE o_quantity > 1 AND o_orderkey < 200;"));
+        assertThrows(
+                SqlParseException.class,
+                () -> parser.parse("DELETE FROM orders, customers;"));
     }
 }
